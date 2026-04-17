@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>PMTiles Map</title>
+    <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/pmtiles@latest/dist/pmtiles.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            padding: 12px 16px;
+            min-width: 230px;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #888;
+            margin: 0 0 6px;
+        }
+
+        .divider {
+            border: none;
+            border-top: 1px solid #eee;
+            margin: 10px 0;
+        }
+
+        .toggle-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 0;
+        }
+
+        .layer-btn {
+            flex: 1;
+            padding: 7px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            color: #444;
+            transition: background 0.15s, border-color 0.15s;
+            text-align: center;
+        }
+
+        .layer-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .layer-btn.active {
+            background: #e8f0fe;
+            border-color: #4285f4;
+            color: #1a56db;
+            font-weight: 500;
+        }
+
+        .metric-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 7px 10px;
+            margin-bottom: 4px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            color: #444;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .metric-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .metric-btn.active {
+            background: #e8f0fe;
+            border-color: #4285f4;
+            color: #1a56db;
+            font-weight: 500;
+        }
+
+        #legend {
+            position: absolute;
+            bottom: 36px;
+            left: 10px;
+            z-index: 10;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            padding: 10px 14px;
+            font-size: 12px;
+        }
+
+        #legend-title {
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #333;
+        }
+
+        #legend-bar {
+            width: 160px;
+            height: 10px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #d73027, #fee08b, #1a9850);
+            margin-bottom: 4px;
+        }
+
+        #legend-labels {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <div id="controls">
+        <p class="section-label">Layer</p>
+        <div class="toggle-row">
+            <button class="layer-btn active" data-layer="epci">EPCI</button>
+            <button class="layer-btn" data-layer="communes">Communes</button>
+        </div>
+        <hr class="divider" />
+        <p class="section-label">Coverage metric</p>
+        <button class="metric-btn active" data-metric="nb_siret" data-label="SIRET coverage">SIRET coverage</button>
+        <button class="metric-btn" data-metric="nb_phone" data-label="Phone coverage">Phone coverage</button>
+        <button class="metric-btn" data-metric="nb_website" data-label="Website coverage">Website coverage</button>
+        <button class="metric-btn" data-metric="nb_email" data-label="Email coverage">Email coverage</button>
+        <button class="metric-btn" data-metric="nb_opening_hours" data-label="Opening hours coverage">Opening hours coverage</button>
+        <button class="metric-btn" data-metric="nb_wheelchair" data-label="Wheelchair coverage">Wheelchair coverage</button>
+        <button class="metric-btn" data-metric="nb_facebook" data-label="Facebook coverage">Facebook coverage</button>
+        <button class="metric-btn" data-metric="nb_instagram" data-label="Instagram coverage">Instagram coverage</button>
+        <button class="metric-btn" data-metric="nb_name" data-label="Name coverage">Name coverage</button>
+    </div>
+
+    <div id="legend">
+        <div id="legend-title">SIRET coverage — EPCI</div>
+        <div id="legend-bar"></div>
+        <div id="legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>
+    </div>
+
+    <script>
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        const COLOR_STOPS = [0, '#d73027', 0.5, '#fee08b', 1, '#1a9850'];
+
+        function makeFillColor(metric) {
+            return [
+                'case',
+                ['>', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 0],
+                [
+                    'interpolate',
+                    ['linear'],
+                    [
+                        '/',
+                        ['to-number', ['coalesce', ['get', metric], 0]],
+                        ['to-number', ['get', 'nb_pois']]
+                    ],
+                    ...COLOR_STOPS
+                ],
+                'rgba(0,0,0,0)'
+            ];
+        }
+
+        const map = new maplibregl.Map({
+            container: "map",
+            style: {
+                version: 8,
+                sources: {
+                    osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256},
+                    epci: { type: "vector", url: "pmtiles://epci.pmtiles" },
+                    communes: { type: "vector", url: "pmtiles://communes.pmtiles" }
+                },
+                layers: [
+                    { id: "osm", type: "raster", source: "osm" },
+                    {
+                        id: 'epci-fill', type: 'fill', source: 'epci',
+                        'source-layer': 'epci_stats', minzoom: 2,
+                        paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
+                    },
+                    {
+                        id: 'epci-line', type: 'line', source: 'epci',
+                        'source-layer': 'epci_stats', minzoom: 0,
+                        paint: { 'line-color': '#555', 'line-width': 1 }
+                    },
+                    {
+                        id: 'communes-fill', type: 'fill', source: 'communes',
+                        'source-layer': 'communes_stats', minzoom: 4,
+                        layout: { visibility: 'none' },
+                        paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
+                    },
+                    {
+                        id: 'communes-line', type: 'line', source: 'communes',
+                        'source-layer': 'communes_stats', minzoom: 2,
+                        layout: { visibility: 'none' },
+                        paint: { 'line-color': '#555', 'line-width': 1 }
+                    },
+                    {
+                        id: 'epci-label',
+                        type: 'symbol',
+                        source: 'epci',
+                        'source-layer': 'epci_stats',
+                        minzoom: 8,
+                       
+                        layout: {
+                            'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'],
+                            'text-size': 13,
+                            'text-anchor': 'center',
+                            'text-allow-overlap': false,
+                            'text-ignore-placement': false
+                        },
+                        paint: {
+                            'text-color': '#111',
+                            'text-halo-color': '#fff',
+                            'text-halo-width': 1
+                        }
+                    }, 
+                    {
+                        id: 'communes-label',
+                        type: 'symbol',
+                        source: 'communes',
+                        'source-layer': 'communes_stats',
+                        minzoom: 8,
+                       
+                        layout: {
+                            'visibility': 'none',
+                            'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'],
+                            'text-size': 11,
+                            'text-anchor': 'center',
+                            'text-allow-overlap': false,
+                            'text-ignore-placement': false
+                        },
+                        paint: {
+                            'text-color': '#111',
+                            'text-halo-color': '#fff',
+                            'text-halo-width': 1
+                        }
+                    }
+
+                ]
+            },
+            center: [2.5, 46.5],
+            maxZoom: 13,
+            zoom: 5
+        });
+
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+
+        let currentLayer = 'epci';
+        let currentMetric = 'nb_siret';
+        let currentLabel = 'SIRET coverage';
+
+        function updateLegend() {
+            const layerName = currentLayer === 'epci' ? 'EPCI' : 'Communes';
+            document.getElementById('legend-title').textContent = currentLabel + ' — ' + layerName;
+        }
+
+        function switchLayer(layer) {
+            const prev = currentLayer;
+            currentLayer = layer;
+            ['fill', 'line', 'label'].forEach(t => {
+                map.setLayoutProperty(prev + '-' + t, 'visibility', 'none');
+                map.setLayoutProperty(layer + '-' + t, 'visibility', 'visible');
+            });
+            updateLegend();
+        }
+
+        function switchMetric(metric, label) {
+            currentMetric = metric; currentLabel = label;
+            ['epci', 'communes'].forEach(l => {
+                map.setPaintProperty(l + '-fill', 'fill-color', makeFillColor(metric));
+            });
+            updateLegend();
+        }
+
+        document.querySelectorAll('.layer-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                switchLayer(btn.dataset.layer);
+            });
+        });
+
+        document.querySelectorAll('.metric-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.metric-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                switchMetric(btn.dataset.metric, btn.dataset.label);
+            });
+        });
+
+        const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+
+        function attachHover(fillId) {
+            map.on('mousemove', fillId, (e) => {
+                if (currentLayer !== fillId.replace('-fill', '')) return;
+                map.getCanvas().style.cursor = 'pointer';
+                const f = e.features[0].properties;
+                const nom = f.nom ?? f.commune ?? 'N/A';
+                const nb_pois = f.nb_pois ?? 0;
+                const val = nb_pois > 0 ? Math.round((f[currentMetric] ?? 0) / nb_pois * 100) : 0;
+                const extra = fillId === 'communes-fill' ? `<br/>Dept: ${f.departement ?? '—'} | EPCI: ${f.epci ?? '—'}`: '';
+
+                popup.setLngLat(e.lngLat).setHTML(`
+                    <div style="font-family:sans-serif;font-size:12px;">
+                        <b>${nom}</b>${extra}<br/>
+                        POIs: ${nb_pois}<br/>
+                        ${currentLabel}: ${val}%
+                    </div>
+                `).addTo(map);
+            });
+            map.on('mouseleave', fillId, () => {
+                map.getCanvas().style.cursor = '';
+                popup.remove();
+            });
+        }
+
+        map.on('load', () => {
+            attachHover('epci-fill');
+            attachHover('communes-fill');
+        });
+    </script>
+</body>
+</html>
