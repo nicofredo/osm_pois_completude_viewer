@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8" />
     <title>PMTiles Map</title>
@@ -148,8 +149,10 @@
         <button class="metric-btn active" data-metric="nb_siret" data-label="SIRET coverage">SIRET coverage</button>
         <button class="metric-btn" data-metric="nb_phone" data-label="Phone coverage">Phone coverage</button>
         <button class="metric-btn" data-metric="nb_website" data-label="Website coverage">Website coverage</button>
+        <button class="metric-btn" data-metric="nb_website_merge" data-label="Website2 coverage">Website2 coverage</button>
         <button class="metric-btn" data-metric="nb_email" data-label="Email coverage">Email coverage</button>
-        <button class="metric-btn" data-metric="nb_opening_hours" data-label="Opening hours coverage">Opening hours coverage</button>
+        <button class="metric-btn" data-metric="nb_opening_hours" data-label="Opening hours coverage">Opening hours
+            coverage</button>
         <button class="metric-btn" data-metric="nb_wheelchair" data-label="Wheelchair coverage">Wheelchair coverage</button>
         <button class="metric-btn" data-metric="nb_facebook" data-label="Facebook coverage">Facebook coverage</button>
         <button class="metric-btn" data-metric="nb_instagram" data-label="Instagram coverage">Instagram coverage</button>
@@ -191,9 +194,12 @@
             style: {
                 version: 8,
                 sources: {
-                    osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256},
+                    osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
                     epci: { type: "vector", url: "pmtiles://epci.pmtiles" },
-                    communes: { type: "vector", url: "pmtiles://communes.pmtiles" }
+                    epci_labels: { type: "vector", url: "pmtiles://epci_labels.pmtiles" },
+                    communes: { type: "vector", url: "pmtiles://communes.pmtiles" },
+                    communes_labels: { type: "vector", url: "pmtiles://communes_labels.pmtiles" }
+
                 },
                 layers: [
                     { id: "osm", type: "raster", source: "osm" },
@@ -222,11 +228,12 @@
                     {
                         id: 'epci-label',
                         type: 'symbol',
-                        source: 'epci',
-                        'source-layer': 'epci_stats',
+                        source: 'epci_labels',
+                        'source-layer': 'epci_labels',
                         minzoom: 8,
-                       
+
                         layout: {
+                            // 'symbol-placement': 'point',
                             'text-field': ['get', 'nom'],
                             'text-font': ['Open Sans Regular'],
                             'text-size': 13,
@@ -239,14 +246,14 @@
                             'text-halo-color': '#fff',
                             'text-halo-width': 1
                         }
-                    }, 
+                    },
                     {
                         id: 'communes-label',
                         type: 'symbol',
-                        source: 'communes',
-                        'source-layer': 'communes_stats',
-                        minzoom: 8,
-                       
+                        source: 'communes_labels',
+                        'source-layer': 'communes_labels',
+                        minzoom: 9,
+
                         layout: {
                             'visibility': 'none',
                             'text-field': ['get', 'nom'],
@@ -326,7 +333,7 @@
                 const nom = f.nom ?? f.commune ?? 'N/A';
                 const nb_pois = f.nb_pois ?? 0;
                 const val = nb_pois > 0 ? Math.round((f[currentMetric] ?? 0) / nb_pois * 100) : 0;
-                const extra = fillId === 'communes-fill' ? `<br/>Dept: ${f.departement ?? '—'} | EPCI: ${f.epci ?? '—'}`: '';
+                const extra = fillId === 'communes-fill' ? `<br/>Dept: ${f.departement ?? '—'} | EPCI: ${f.epci ?? '—'}` : '';
 
                 popup.setLngLat(e.lngLat).setHTML(`
                     <div style="font-family:sans-serif;font-size:12px;">
@@ -346,6 +353,11 @@
             attachHover('epci-fill');
             attachHover('communes-fill');
         });
+
+        // map.on('moveend', () => {
+        //     console.log('Zoom: ', zoom);
+        // });
     </script>
 </body>
+
 </html>
