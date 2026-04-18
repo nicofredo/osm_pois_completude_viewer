@@ -1,13 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 
 <head>
     <meta charset="utf-8" />
-    <title>PMTiles Map</title>
+    <title>Complétude POIs OSM</title>
     <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@latest/dist/pmtiles.js"></script>
     <style>
+        h2 {
+            color: #000;
+            text-align: center;
+        }
+
         body {
             margin: 0;
             font-family: sans-serif;
@@ -27,7 +32,7 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             padding: 12px 16px;
-            min-width: 230px;
+            max-width: 260px;
         }
 
         .section-label {
@@ -47,6 +52,7 @@
 
         .toggle-row {
             display: flex;
+            flex-direction: column;
             gap: 6px;
             margin-bottom: 0;
         }
@@ -60,7 +66,7 @@
             cursor: pointer;
             font-size: 12px;
             color: #444;
-            transition: background 0.15s, border-color 0.15s;
+            /* transition: background 0.15s, border-color 0.15s; */
             text-align: center;
         }
 
@@ -87,7 +93,7 @@
             cursor: pointer;
             font-size: 12px;
             color: #444;
-            transition: background 0.15s, border-color 0.15s;
+            /* transition: background 0.15s, border-color 0.15s; */
         }
 
         .metric-btn:hover {
@@ -132,6 +138,18 @@
             justify-content: space-between;
             color: #666;
         }
+
+        /* Click popup close button styling */
+        .maplibregl-popup-close-button {
+            font-size: 16px;
+            color: #888;
+            padding: 4px 8px;
+        }
+
+        .maplibregl-popup-close-button:hover {
+            color: #333;
+            background: transparent;
+        }
     </style>
 </head>
 
@@ -139,28 +157,34 @@
     <div id="map"></div>
 
     <div id="controls">
-        <p class="section-label">Layer</p>
+        <h2>Complétude des POIs OSM par territoire</h2>
+        <p class="section-label">Couche</p>
         <div class="toggle-row">
+            <button class="layer-btn" data-layer="regions">Régions</button>
+            <button class="layer-btn" data-layer="departements">Départements</button>
             <button class="layer-btn active" data-layer="epci">EPCI</button>
             <button class="layer-btn" data-layer="communes">Communes</button>
         </div>
         <hr class="divider" />
-        <p class="section-label">Coverage metric</p>
-        <button class="metric-btn active" data-metric="nb_siret" data-label="SIRET coverage">SIRET coverage</button>
-        <button class="metric-btn" data-metric="nb_phone" data-label="Phone coverage">Phone coverage</button>
-        <button class="metric-btn" data-metric="nb_website" data-label="Website coverage">Website coverage</button>
-        <button class="metric-btn" data-metric="nb_website_merge" data-label="Website2 coverage">Website2 coverage</button>
-        <button class="metric-btn" data-metric="nb_email" data-label="Email coverage">Email coverage</button>
-        <button class="metric-btn" data-metric="nb_opening_hours" data-label="Opening hours coverage">Opening hours
-            coverage</button>
-        <button class="metric-btn" data-metric="nb_wheelchair" data-label="Wheelchair coverage">Wheelchair coverage</button>
-        <button class="metric-btn" data-metric="nb_facebook" data-label="Facebook coverage">Facebook coverage</button>
-        <button class="metric-btn" data-metric="nb_instagram" data-label="Instagram coverage">Instagram coverage</button>
-        <button class="metric-btn" data-metric="nb_name" data-label="Name coverage">Name coverage</button>
+        <p class="section-label">Tags</p>
+        <button class="metric-btn active" data-metric="nb_siret" data-label="Complétude SIRET">SIRET</button>
+        <button class="metric-btn" data-metric="nb_name" data-label="Complétude Name">Name</button>
+        <button class="metric-btn" data-metric="nb_phone" data-label="Complétude Phone">Phone</button>
+        <button class="metric-btn" data-metric="nb_website_merge" data-label="Complétude Website, Fb, Insta">Website |
+            Facebook | Instagram</button>
+        <button class="metric-btn" data-metric="nb_email" data-label="Complétude Email">Email</button>
+        <button class="metric-btn" data-metric="nb_opening_hours" data-label="Complétude Opening hours">Opening
+            hours</button>
+        <button class="metric-btn" data-metric="nb_wheelchair"
+            data-label="Complétude Wheelchair">Wheelchair</button>
+        <!-- <button class="metric-btn" data-metric="nb_website" data-label="Website">Website</button>
+        <button class="metric-btn" data-metric="nb_facebook" data-label="Facebook">Facebook</button>
+        <button class="metric-btn" data-metric="nb_instagram" data-label="Instagram">Instagram</button> -->
+        <br>
+        <div id="update-time"></div>
     </div>
 
     <div id="legend">
-        <div id="legend-title">SIRET coverage — EPCI</div>
         <div id="legend-bar"></div>
         <div id="legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>
     </div>
@@ -195,45 +219,145 @@
                 version: 8,
                 sources: {
                     osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
-                    epci: { type: "vector", url: "pmtiles://epci.pmtiles" },
-                    epci_labels: { type: "vector", url: "pmtiles://epci_labels.pmtiles" },
-                    communes: { type: "vector", url: "pmtiles://communes.pmtiles" },
-                    communes_labels: { type: "vector", url: "pmtiles://communes_labels.pmtiles" }
+                    regions: { type: "vector", url: "pmtiles://regions.pmtiles", promoteId: 'code' },
+                    departements: { type: "vector", url: "pmtiles://departements.pmtiles", promoteId: 'code' },
+                    epci: { type: "vector", url: "pmtiles://epci.pmtiles", promoteId: 'code' },
+                    communes: { type: "vector", url: "pmtiles://communes.pmtiles", promoteId: 'code_commune' },
 
+                    regions_labels: { type: "geojson", data: "regions_labels.geojson" }, //url: "pmtiles://regions_labels.pmtiles" },
+                    departements_labels: { type: "geojson", data: "departements_labels.geojson" }, //url: "pmtiles://departements_labels.pmtiles" },
+                    epci_labels: { type: "geojson", data: "epci_labels.geojson" }, //url: "pmtiles://epci_labels.pmtiles" },
+                    communes_labels: { type: "vector", url: "pmtiles://communes_labels.pmtiles" }
                 },
                 layers: [
                     { id: "osm", type: "raster", source: "osm" },
                     {
+                        id: 'regions-fill', type: 'fill', source: 'regions',
+                        'source-layer': 'regions_stats', minzoom: 0,
+                        layout: { visibility: 'none' },
+                        paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
+                    },
+                    {
+                        id: 'regions-line', type: 'line', source: 'regions',
+                        'source-layer': 'regions_stats', minzoom: 0,
+                        layout: { visibility: 'none' },
+                        paint: {
+                            'line-color': '#555',
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'hover'], false],
+                                3,
+                                1
+                            ]
+                        }
+                    },
+                    {
+                        id: 'departements-fill', type: 'fill', source: 'departements',
+                        'source-layer': 'departements_stats', minzoom: 2,
+                        layout: { visibility: 'none' },
+                        paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
+                    },
+                    {
+                        id: 'departements-line', type: 'line', source: 'departements',
+                        'source-layer': 'departements_stats', minzoom: 2,
+                        layout: { visibility: 'none' },
+                        paint: {
+                            'line-color': '#555',
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'hover'], false],
+                                3,
+                                1
+                            ]
+                        }
+                    },
+                    {
                         id: 'epci-fill', type: 'fill', source: 'epci',
-                        'source-layer': 'epci_stats', minzoom: 2,
+                        'source-layer': 'epci_stats', minzoom: 3,
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
                         id: 'epci-line', type: 'line', source: 'epci',
-                        'source-layer': 'epci_stats', minzoom: 0,
-                        paint: { 'line-color': '#555', 'line-width': 1 }
+                        'source-layer': 'epci_stats', minzoom: 3,
+                        paint: {
+                            'line-color': '#555',
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'hover'], false],
+                                3,
+                                1
+                            ]
+                        }
                     },
                     {
                         id: 'communes-fill', type: 'fill', source: 'communes',
-                        'source-layer': 'communes_stats', minzoom: 4,
+                        'source-layer': 'communes_stats', minzoom: 5,
                         layout: { visibility: 'none' },
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
                         id: 'communes-line', type: 'line', source: 'communes',
-                        'source-layer': 'communes_stats', minzoom: 2,
+                        'source-layer': 'communes_stats', minzoom: 5,
                         layout: { visibility: 'none' },
-                        paint: { 'line-color': '#555', 'line-width': 1 }
+                        paint: {
+                            'line-color': '#555',
+                            'line-width': [
+                                'case',
+                                ['boolean', ['feature-state', 'hover'], false],
+                                3,
+                                1
+                            ]
+                        }
+                    },
+                    {
+                        id: 'regions-label',
+                        type: 'symbol',
+                        source: 'regions_labels',
+                        // 'source-layer': 'regions_labels',
+                        minzoom: 6,
+                        layout: {
+                            'visibility': 'none',
+                            'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'],
+                            'text-size': 17,
+                            'text-anchor': 'center',
+                            'text-allow-overlap': false,
+                            'text-ignore-placement': false
+                        },
+                        paint: {
+                            'text-color': '#111',
+                            'text-halo-color': '#fff',
+                            'text-halo-width': 1
+                        }
+                    },
+                    {
+                        id: 'departements-label',
+                        type: 'symbol',
+                        source: 'departements_labels',
+                        // 'source-layer': 'departements_labels',
+                        minzoom: 6,
+                        layout: {
+                            'visibility': 'none',
+                            'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'],
+                            'text-size': 13,
+                            'text-anchor': 'center',
+                            'text-allow-overlap': false,
+                            'text-ignore-placement': false
+                        },
+                        paint: {
+                            'text-color': '#111',
+                            'text-halo-color': '#fff',
+                            'text-halo-width': 1
+                        }
                     },
                     {
                         id: 'epci-label',
                         type: 'symbol',
                         source: 'epci_labels',
-                        'source-layer': 'epci_labels',
+                        // 'source-layer': 'epci_labels',
                         minzoom: 8,
-
                         layout: {
-                            // 'symbol-placement': 'point',
                             'text-field': ['get', 'nom'],
                             'text-font': ['Open Sans Regular'],
                             'text-size': 13,
@@ -253,12 +377,11 @@
                         source: 'communes_labels',
                         'source-layer': 'communes_labels',
                         minzoom: 9,
-
                         layout: {
                             'visibility': 'none',
                             'text-field': ['get', 'nom'],
                             'text-font': ['Open Sans Regular'],
-                            'text-size': 11,
+                            'text-size': 13,
                             'text-anchor': 'center',
                             'text-allow-overlap': false,
                             'text-ignore-placement': false
@@ -269,25 +392,42 @@
                             'text-halo-width': 1
                         }
                     }
-
                 ]
             },
             center: [2.5, 46.5],
             maxZoom: 13,
-            zoom: 5
+            zoom: 5,
+            // projection: "globe",
+            attributionControl: false
         });
 
-        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        let hoveredStateId = null;
+
+        map.addControl(new maplibregl.AttributionControl({
+            compact: true,
+            customAttribution: [
+                '<a href="https://maplibre.org/" target="_blank">MapLibre</a>',
+                '<a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+            ]
+        }));
+        map.addControl(new maplibregl.NavigationControl({
+            visualizePitch: 'true',
+            // visualizeRoll: 'false'
+        }), 'top-right');
+
+        // map.dragRotate.enable();
+        // map.touchZoomRotate.enableRotation();
         map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+        map.addControl(new maplibregl.GlobeControl(), 'top-right');
 
         let currentLayer = 'epci';
         let currentMetric = 'nb_siret';
-        let currentLabel = 'SIRET coverage';
+        let currentLabel = 'Complétude SIRET';
 
-        function updateLegend() {
-            const layerName = currentLayer === 'epci' ? 'EPCI' : 'Communes';
-            document.getElementById('legend-title').textContent = currentLabel + ' — ' + layerName;
-        }
+        // function updateLegend() {
+        //     const layerName = currentLayer === 'epci' ? 'EPCI' : 'Communes';
+        // document.getElementById('legend-title').textContent = currentLabel + ' — ' + layerName;
+        // }
 
         function switchLayer(layer) {
             const prev = currentLayer;
@@ -296,12 +436,13 @@
                 map.setLayoutProperty(prev + '-' + t, 'visibility', 'none');
                 map.setLayoutProperty(layer + '-' + t, 'visibility', 'visible');
             });
-            updateLegend();
+            // updateLegend();
         }
 
         function switchMetric(metric, label) {
-            currentMetric = metric; currentLabel = label;
-            ['epci', 'communes'].forEach(l => {
+            currentMetric = metric;
+            currentLabel = label;
+            ['regions', 'departements', 'epci', 'communes'].forEach(l => {
                 map.setPaintProperty(l + '-fill', 'fill-color', makeFillColor(metric));
             });
             updateLegend();
@@ -323,40 +464,172 @@
             });
         });
 
-        const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+        // All metrics definition (used in click popup)
+        const ALL_METRICS = [
+            { key: 'nb_siret', label: 'SIRET' },
+            { key: 'nb_name', label: 'Name' },
+            { key: 'nb_phone', label: 'Phone' },
+            { key: 'nb_website_merge', label: 'Website, Fb, Insta' },
+            { key: 'nb_email', label: 'Email' },
+            { key: 'nb_opening_hours', label: 'Opening hours' },
+            { key: 'nb_wheelchair', label: 'Wheelchair' },
+        ];
+
+        // Color helper matching the map gradient (red → yellow → green)
+        function pctColor(pct) {
+            if (pct <= 50) {
+                // red (#d73027) → yellow (#fee08b)
+                const t = pct / 50;
+                const r = Math.round(215 + (254 - 215) * t);
+                const g = Math.round(48 + (224 - 48) * t);
+                const b = Math.round(39 + (139 - 39) * t);
+                return `rgb(${r},${g},${b})`;
+            } else {
+                // yellow (#fee08b) → green (#1a9850)
+                const t = (pct - 50) / 50;
+                const r = Math.round(254 + (26 - 254) * t);
+                const g = Math.round(224 + (152 - 224) * t);
+                const b = Math.round(139 + (80 - 139) * t);
+                return `rgb(${r},${g},${b})`;
+            }
+        }
+
+        function buildHoverHTML(f, fillId) {
+            const code = f.code ?? f.code_commune ?? 'N/A';
+            const nom = f.nom ?? f.commune ?? 'N/A';
+            const nb_pois = f.nb_pois ?? 0;
+            const val = nb_pois > 0 ? Math.trunc((f[currentMetric] ?? 0) / nb_pois * 100) : 0;
+            return `
+                <div style="font-family:sans-serif;font-size:12px;">
+                    <b>${code} - ${nom}</b><br/>
+                    POIs: ${nb_pois}<br/>
+                    ${currentLabel}: ${val}%
+                </div>`;
+        }
+
+        function buildClickHTML(f, fillId) {
+            const code = f.code ?? f.code_commune ?? 'N/A'
+            const nom = f.nom ?? 'N/A';
+            const nb_pois = f.nb_pois ?? 0;
+            const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
+
+
+            const rows = ALL_METRICS.map(({ key, label }) => {
+                const p = pct(key);
+                const color = pctColor(p);
+                return `
+                    <tr>
+                        <td style="padding:3px 10px 3px 0;color:#555;white-space:nowrap;">${label}</td>
+                        <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:8px;">${p}%</td>
+                        <td style="padding:3px 0;width:90px;">
+                            <div style="background:#eee;border-radius:3px;height:7px;overflow:hidden;">
+                                <div style="background:${color};border-radius:3px;height:7px;width:${p}%;transition:width 0.3s;"></div>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+
+            return `
+                <div style="font-family:sans-serif;font-size:12px;min-width:220px;">
+                    <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${code} - ${nom}</div>
+                    <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
+                        Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>
+                    </div>
+                    <table style="border-collapse:collapse;width:100%;">${rows}</table>
+                </div>`;
+        }
+
+        // Hover popup — transient, no close button
+        const hoverPopup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false
+        });
+
+        // Click popup — persistent, with close button
+        const clickPopup = new maplibregl.Popup({
+            closeButton: true,
+            closeOnClick: false,
+            maxWidth: '300px'
+        });
 
         function attachHover(fillId) {
-            map.on('mousemove', fillId, (e) => {
-                if (currentLayer !== fillId.replace('-fill', '')) return;
-                map.getCanvas().style.cursor = 'pointer';
-                const f = e.features[0].properties;
-                const nom = f.nom ?? f.commune ?? 'N/A';
-                const nb_pois = f.nb_pois ?? 0;
-                const val = nb_pois > 0 ? Math.round((f[currentMetric] ?? 0) / nb_pois * 100) : 0;
-                const extra = fillId === 'communes-fill' ? `<br/>Dept: ${f.departement ?? '—'} | EPCI: ${f.epci ?? '—'}` : '';
+            const sourceName = fillId.replace('-fill', '');
+            const sourceLayer = sourceName + '_stats';
 
-                popup.setLngLat(e.lngLat).setHTML(`
-                    <div style="font-family:sans-serif;font-size:12px;">
-                        <b>${nom}</b>${extra}<br/>
-                        POIs: ${nb_pois}<br/>
-                        ${currentLabel}: ${val}%
-                    </div>
-                `).addTo(map);
+            map.on('mousemove', fillId, (e) => {
+                if (currentLayer !== sourceName) return;
+                map.getCanvas().style.cursor = 'pointer';
+
+                const f = e.features[0].properties;
+
+                hoverPopup
+                    .setLngLat(e.lngLat)
+                    .setHTML(buildHoverHTML(f, fillId))
+                    .addTo(map);
+
+                if (hoveredStateId) {
+                    map.setFeatureState(
+                        { source: sourceName, sourceLayer: sourceLayer, id: hoveredStateId },
+                        { hover: false }
+                    );
+                }
+                hoveredStateId = e.features[0].id;
+                map.setFeatureState(
+                    { source: sourceName, sourceLayer: sourceLayer, id: hoveredStateId },
+                    { hover: true }
+                );
             });
+
             map.on('mouseleave', fillId, () => {
                 map.getCanvas().style.cursor = '';
-                popup.remove();
+                hoverPopup.remove();
+                if (hoveredStateId) {
+                    map.setFeatureState(
+                        { source: sourceName, sourceLayer: sourceLayer, id: hoveredStateId },
+                        { hover: false }
+                    );
+                }
+                hoveredStateId = null;
+            });
+
+            map.on('click', fillId, (e) => {
+                if (currentLayer !== sourceName) return;
+                const f = e.features[0].properties;
+                clickPopup
+                    .setLngLat(e.lngLat)
+                    .setHTML(buildClickHTML(f, fillId))
+                    .addTo(map);
             });
         }
 
         map.on('load', () => {
+            attachHover('regions-fill');
+            attachHover('departements-fill');
             attachHover('epci-fill');
             attachHover('communes-fill');
         });
 
-        // map.on('moveend', () => {
-        //     console.log('Zoom: ', zoom);
-        // });
+        map.on('moveend', () => {
+            const zoom = map.getZoom();
+            console.log('Zoom: ', zoom);
+        });
+
+        const updatedAt = "2026-04-18T12:27:59Z";
+
+        const date = new Date(updatedAt);
+
+        const exact = date.toLocaleString('fr-FR', {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+        });
+
+        const el = document.getElementById('update-time');
+        el.innerHTML = `
+            <span style="color:#666;font-size:11px;">
+                Mise à jour : <b>${exact}</b>
+            </span>
+        `;
+        
     </script>
 </body>
 
