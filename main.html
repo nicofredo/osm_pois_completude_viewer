@@ -8,14 +8,14 @@
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@latest/dist/pmtiles.js"></script>
     <style>
-        h2 {
-            color: #000;
-            text-align: center;
-        }
-
         body {
             margin: 0;
             font-family: sans-serif;
+        }
+
+        h2 {
+            color: #000;
+            text-align: center;
         }
 
         #map {
@@ -33,6 +33,10 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             padding: 12px 16px;
             max-width: 260px;
+        }
+
+        #source-code {
+            font-size: 11px;
         }
 
         .section-label {
@@ -66,7 +70,6 @@
             cursor: pointer;
             font-size: 12px;
             color: #444;
-            /* transition: background 0.15s, border-color 0.15s; */
             text-align: center;
         }
 
@@ -81,7 +84,37 @@
             font-weight: 500;
         }
 
-        .metric-btn {
+        .mode-row {
+            display: flex;
+            flex-direction: row;
+            gap: 6px;
+            margin-bottom: 0;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 7px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            color: #444;
+            text-align: center;
+        }
+
+        .mode-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .mode-btn.active {
+            background: #e8f0fe;
+            border-color: #4285f4;
+            color: #1a56db;
+            font-weight: 500;
+        }
+
+        .tag-btn {
             display: block;
             width: 100%;
             text-align: left;
@@ -93,14 +126,13 @@
             cursor: pointer;
             font-size: 12px;
             color: #444;
-            /* transition: background 0.15s, border-color 0.15s; */
         }
 
-        .metric-btn:hover {
+        .tag-btn:hover {
             background: #f0f0f0;
         }
 
-        .metric-btn.active {
+        .tag-btn.active {
             background: #e8f0fe;
             border-color: #4285f4;
             color: #1a56db;
@@ -119,12 +151,6 @@
             font-size: 12px;
         }
 
-        #legend-title {
-            font-weight: 500;
-            margin-bottom: 6px;
-            color: #333;
-        }
-
         #legend-bar {
             width: 160px;
             height: 10px;
@@ -139,7 +165,6 @@
             color: #666;
         }
 
-        /* Click popup close button styling */
         .maplibregl-popup-close-button {
             font-size: 16px;
             color: #888;
@@ -158,6 +183,7 @@
 
     <div id="controls">
         <h2>Complétude des POIs OSM par territoire</h2>
+
         <p class="section-label">Couche</p>
         <div class="toggle-row">
             <button class="layer-btn" data-layer="regions">Régions</button>
@@ -165,23 +191,31 @@
             <button class="layer-btn active" data-layer="epci">EPCI</button>
             <button class="layer-btn" data-layer="communes">Communes</button>
         </div>
+
         <hr class="divider" />
+
+        <p class="section-label">Mode d'affichage</p>
+        <div class="mode-row">
+            <button class="mode-btn active" data-mode="boundary">Boundaries</button>
+            <button class="mode-btn" data-mode="centroid">Cercles</button>
+        </div>
+
+        <hr class="divider" />
+
         <p class="section-label">Tags</p>
-        <button class="metric-btn active" data-metric="nb_siret" data-label="Complétude SIRET">SIRET</button>
-        <button class="metric-btn" data-metric="nb_name" data-label="Complétude Name">Name</button>
-        <button class="metric-btn" data-metric="nb_phone" data-label="Complétude Phone">Phone</button>
-        <button class="metric-btn" data-metric="nb_website_merge" data-label="Complétude Website, Fb, Insta">Website |
+        <button class="tag-btn active" data-tag="nb_siret" data-label="Complétude SIRET">SIRET</button>
+        <button class="tag-btn" data-tag="nb_name" data-label="Complétude Name">Name</button>
+        <button class="tag-btn" data-tag="nb_phone" data-label="Complétude Phone">Phone</button>
+        <button class="tag-btn" data-tag="nb_website_merge" data-label="Complétude Website, Fb, Insta">Website |
             Facebook | Instagram</button>
-        <button class="metric-btn" data-metric="nb_email" data-label="Complétude Email">Email</button>
-        <button class="metric-btn" data-metric="nb_opening_hours" data-label="Complétude Opening hours">Opening
-            hours</button>
-        <button class="metric-btn" data-metric="nb_wheelchair"
-            data-label="Complétude Wheelchair">Wheelchair</button>
-        <!-- <button class="metric-btn" data-metric="nb_website" data-label="Website">Website</button>
-        <button class="metric-btn" data-metric="nb_facebook" data-label="Facebook">Facebook</button>
-        <button class="metric-btn" data-metric="nb_instagram" data-label="Instagram">Instagram</button> -->
+        <button class="tag-btn" data-tag="nb_email" data-label="Complétude Email">Email</button>
+        <button class="tag-btn" data-tag="nb_opening_hours" data-label="Complétude Opening hours">Opening hours</button>
+        <button class="tag-btn" data-tag="nb_wheelchair" data-label="Complétude Wheelchair">Wheelchair</button>
+
         <br>
         <div id="update-time"></div>
+        <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" id="source-code">Code
+            source</a>
     </div>
 
     <div id="legend">
@@ -195,22 +229,27 @@
 
         const COLOR_STOPS = [0, '#d73027', 0.5, '#fee08b', 1, '#1a9850'];
 
-        function makeFillColor(metric) {
+        // Line appearance per mode
+        const LINE_STYLE = {
+            boundary: { color: '#555', width: 1, hoverWidth: 3 },
+            centroid: { color: '#888', width: 1, hoverWidth: 3 }
+        };
+
+        function makeFillColor(tag) {
             return [
                 'case',
                 ['>', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 0],
                 [
-                    'interpolate',
-                    ['linear'],
-                    [
-                        '/',
-                        ['to-number', ['coalesce', ['get', metric], 0]],
-                        ['to-number', ['get', 'nb_pois']]
-                    ],
+                    'interpolate', ['linear'],
+                    ['/', ['to-number', ['coalesce', ['get', tag], 0]], ['to-number', ['get', 'nb_pois']]],
                     ...COLOR_STOPS
                 ],
                 'rgba(0,0,0,0)'
             ];
+        }
+
+        function makeLineWidth(hoverW, normalW) {
+            return ['case', ['boolean', ['feature-state', 'hover'], false], hoverW, normalW];
         }
 
         const map = new maplibregl.Map({
@@ -222,15 +261,22 @@
                     regions: { type: "vector", url: "pmtiles://regions.pmtiles", promoteId: 'code' },
                     departements: { type: "vector", url: "pmtiles://departements.pmtiles", promoteId: 'code' },
                     epci: { type: "vector", url: "pmtiles://epci.pmtiles", promoteId: 'code' },
-                    communes: { type: "vector", url: "pmtiles://communes.pmtiles", promoteId: 'code_commune' },
+                    communes: { type: "vector", url: "pmtiles://communes.pmtiles", promoteId: 'code' },
 
-                    regions_labels: { type: "geojson", data: "regions_labels.geojson" }, //url: "pmtiles://regions_labels.pmtiles" },
-                    departements_labels: { type: "geojson", data: "departements_labels.geojson" }, //url: "pmtiles://departements_labels.pmtiles" },
-                    epci_labels: { type: "geojson", data: "epci_labels.geojson" }, //url: "pmtiles://epci_labels.pmtiles" },
+                    regions_centroid: { type: "vector", url: "pmtiles://regions_centroid.pmtiles", promoteId: 'code' },
+                    departements_centroid: { type: "vector", url: "pmtiles://departements_centroid.pmtiles", promoteId: 'code' },
+                    epci_centroid: { type: "vector", url: "pmtiles://epci_centroid.pmtiles", promoteId: 'code' },
+                    communes_centroid: { type: "vector", url: "pmtiles://communes_centroid.pmtiles", promoteId: 'code' },
+
+                    regions_labels: { type: "geojson", data: "regions_labels.geojson" },
+                    departements_labels: { type: "geojson", data: "departements_labels.geojson" },
+                    epci_labels: { type: "geojson", data: "epci_labels.geojson" },
                     communes_labels: { type: "vector", url: "pmtiles://communes_labels.pmtiles" }
                 },
                 layers: [
                     { id: "osm", type: "raster", source: "osm" },
+
+                    // ── Fills ────────────────────────────────────────────────────
                     {
                         id: 'regions-fill', type: 'fill', source: 'regions',
                         'source-layer': 'regions_stats', minzoom: 0,
@@ -242,13 +288,8 @@
                         'source-layer': 'regions_stats', minzoom: 0,
                         layout: { visibility: 'none' },
                         paint: {
-                            'line-color': '#555',
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'hover'], false],
-                                3,
-                                1
-                            ]
+                            'line-color': LINE_STYLE.boundary.color,
+                            'line-width': makeLineWidth(LINE_STYLE.boundary.hoverWidth, LINE_STYLE.boundary.width)
                         }
                     },
                     {
@@ -262,31 +303,23 @@
                         'source-layer': 'departements_stats', minzoom: 2,
                         layout: { visibility: 'none' },
                         paint: {
-                            'line-color': '#555',
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'hover'], false],
-                                3,
-                                1
-                            ]
+                            'line-color': LINE_STYLE.boundary.color,
+                            'line-width': makeLineWidth(LINE_STYLE.boundary.hoverWidth, LINE_STYLE.boundary.width)
                         }
                     },
                     {
                         id: 'epci-fill', type: 'fill', source: 'epci',
                         'source-layer': 'epci_stats', minzoom: 3,
+                        layout: { visibility: 'visible' },
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
                         id: 'epci-line', type: 'line', source: 'epci',
                         'source-layer': 'epci_stats', minzoom: 3,
+                        layout: { visibility: 'visible' },
                         paint: {
-                            'line-color': '#555',
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'hover'], false],
-                                3,
-                                1
-                            ]
+                            'line-color': LINE_STYLE.boundary.color,
+                            'line-width': makeLineWidth(LINE_STYLE.boundary.hoverWidth, LINE_STYLE.boundary.width)
                         }
                     },
                     {
@@ -300,15 +333,82 @@
                         'source-layer': 'communes_stats', minzoom: 5,
                         layout: { visibility: 'none' },
                         paint: {
-                            'line-color': '#555',
-                            'line-width': [
-                                'case',
-                                ['boolean', ['feature-state', 'hover'], false],
-                                3,
-                                1
-                            ]
+                            'line-color': LINE_STYLE.boundary.color,
+                            'line-width': makeLineWidth(LINE_STYLE.boundary.hoverWidth, LINE_STYLE.boundary.width)
                         }
                     },
+
+                    // ── Centroid circles ─────────────────────────────────────────
+                    {
+                        id: 'regions-circle', type: 'circle', source: 'regions_centroid',
+                        'source-layer': 'regions_stats_centroid', minzoom: 0,
+                        layout: { visibility: 'none' },
+                        paint: {
+                            'circle-color': makeFillColor('nb_siret'),
+                            'circle-radius': [
+                                'interpolate', ['linear'],
+                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
+                                6, 4,  // ln(1) = 0  -> rayon min
+                                12, 50 // ln(60000) = 11 -> rayon max
+                            ],
+                            'circle-opacity': 0.85,
+                            'circle-stroke-color': LINE_STYLE.centroid.color,
+                            'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
+                        }
+                    },
+                    {
+                        id: 'departements-circle', type: 'circle', source: 'departements_centroid',
+                        'source-layer': 'departements_stats_centroid', minzoom: 2,
+                        layout: { visibility: 'none' },
+                        paint: {
+                            'circle-color': makeFillColor('nb_siret'),
+                            'circle-radius': [
+                                'interpolate', ['linear'],
+                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
+                                6, 4,
+                                11, 40 // ln(22000) = 10
+                            ],
+                            'circle-opacity': 0.85,
+                            'circle-stroke-color': LINE_STYLE.centroid.color,
+                            'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
+                        }
+                    },
+                    {
+                        id: 'epci-circle', type: 'circle', source: 'epci_centroid',
+                        'source-layer': 'epci_stats_centroid', minzoom: 3,
+                        layout: { visibility: 'none' },
+                        paint: {
+                            'circle-color': makeFillColor('nb_siret'),
+                            'circle-radius': [
+                                'interpolate', ['linear'],
+                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
+                                4, 4,
+                                10, 30 // ln(8000) = 9
+                            ],
+                            'circle-opacity': 0.85,
+                            'circle-stroke-color': LINE_STYLE.centroid.color,
+                            'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
+                        }
+                    },
+                    {
+                        id: 'communes-circle', type: 'circle', source: 'communes_centroid',
+                        'source-layer': 'communes_stats_centroid', minzoom: 5,
+                        layout: { visibility: 'none' },
+                        paint: {
+                            'circle-color': makeFillColor('nb_siret'),
+                            'circle-radius': [
+                                'interpolate', ['linear'],
+                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
+                                2, 5,
+                                9, 30
+                            ],
+                            'circle-opacity': 0.85,
+                            'circle-stroke-color': LINE_STYLE.centroid.color,
+                            'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
+                        }
+                    },
+
+                    // ── Labels ───────────────────────────────────────────────────
                     {
                         id: 'regions-label',
                         type: 'symbol',
@@ -316,19 +416,11 @@
                         // 'source-layer': 'regions_labels',
                         minzoom: 6,
                         layout: {
-                            'visibility': 'none',
-                            'text-field': ['get', 'nom'],
-                            'text-font': ['Open Sans Regular'],
-                            'text-size': 17,
-                            'text-anchor': 'center',
-                            'text-allow-overlap': false,
-                            'text-ignore-placement': false
+                            'visibility': 'none', 'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'], 'text-size': 17,
+                            'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
-                        paint: {
-                            'text-color': '#111',
-                            'text-halo-color': '#fff',
-                            'text-halo-width': 1
-                        }
+                        paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 1 }
                     },
                     {
                         id: 'departements-label',
@@ -337,19 +429,11 @@
                         // 'source-layer': 'departements_labels',
                         minzoom: 6,
                         layout: {
-                            'visibility': 'none',
-                            'text-field': ['get', 'nom'],
-                            'text-font': ['Open Sans Regular'],
-                            'text-size': 13,
-                            'text-anchor': 'center',
-                            'text-allow-overlap': false,
-                            'text-ignore-placement': false
+                            'visibility': 'none', 'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'], 'text-size': 13,
+                            'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
-                        paint: {
-                            'text-color': '#111',
-                            'text-halo-color': '#fff',
-                            'text-halo-width': 1
-                        }
+                        paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 1 }
                     },
                     {
                         id: 'epci-label',
@@ -358,95 +442,102 @@
                         // 'source-layer': 'epci_labels',
                         minzoom: 8,
                         layout: {
-                            'text-field': ['get', 'nom'],
-                            'text-font': ['Open Sans Regular'],
-                            'text-size': 13,
-                            'text-anchor': 'center',
-                            'text-allow-overlap': false,
-                            'text-ignore-placement': false
+                            visibility: 'visible', 'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'], 'text-size': 13,
+                            'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
-                        paint: {
-                            'text-color': '#111',
-                            'text-halo-color': '#fff',
-                            'text-halo-width': 1
-                        }
+                        paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 1 }
                     },
                     {
-                        id: 'communes-label',
-                        type: 'symbol',
-                        source: 'communes_labels',
-                        'source-layer': 'communes_labels',
-                        minzoom: 9,
+                        id: 'communes-label', type: 'symbol', source: 'communes_labels',
+                        'source-layer': 'communes_labels', minzoom: 9,
                         layout: {
-                            'visibility': 'none',
-                            'text-field': ['get', 'nom'],
-                            'text-font': ['Open Sans Regular'],
-                            'text-size': 13,
-                            'text-anchor': 'center',
-                            'text-allow-overlap': false,
-                            'text-ignore-placement': false
+                            'visibility': 'none', 'text-field': ['get', 'nom'],
+                            'text-font': ['Open Sans Regular'], 'text-size': 13,
+                            'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
-                        paint: {
-                            'text-color': '#111',
-                            'text-halo-color': '#fff',
-                            'text-halo-width': 1
-                        }
+                        paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 1 }
                     }
                 ]
             },
             center: [2.5, 46.5],
             maxZoom: 13,
             zoom: 5,
-            // projection: "globe",
             attributionControl: false
-        });
+        })
+            .addControl(new maplibregl.AttributionControl({
+                compact: true,
+                customAttribution: [
+                    '<a href="https://maplibre.org/" target="_blank">MapLibre</a>',
+                    '<a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+                ]
+            }))
+            .addControl(new maplibregl.NavigationControl({ visualizePitch: 'true' }), 'top-right')
+            .addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
+            .addControl(new maplibregl.GlobeControl(), 'top-right')
+            .addControl(new maplibregl.FullscreenControl());
 
-        let hoveredStateId = null;
 
-        map.addControl(new maplibregl.AttributionControl({
-            compact: true,
-            customAttribution: [
-                '<a href="https://maplibre.org/" target="_blank">MapLibre</a>',
-                '<a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-            ]
-        }));
-        map.addControl(new maplibregl.NavigationControl({
-            visualizePitch: 'true',
-            // visualizeRoll: 'false'
-        }), 'top-right');
+        const getActive = (selector, attr) =>
+            document.querySelector(selector + '.active')?.dataset[attr];
 
-        // map.dragRotate.enable();
-        // map.touchZoomRotate.enableRotation();
-        map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
-        map.addControl(new maplibregl.GlobeControl(), 'top-right');
+        let currentLayer = getActive('.layer-btn', 'layer');
+        let currentTag = getActive('.tag-btn', 'tag');
+        let currentLabel = getActive('.tag-btn', 'label');
+        let currentMode = getActive('.mode-btn', 'mode');
+        
+        // ── Apply line paint for a layer according to current mode ────────────
 
-        let currentLayer = 'epci';
-        let currentMetric = 'nb_siret';
-        let currentLabel = 'Complétude SIRET';
+        function applyLineStyle(layer, mode) {
+            const s = LINE_STYLE[mode];
+            map.setPaintProperty(layer + '-line', 'line-color', s.color);
+            map.setPaintProperty(layer + '-line', 'line-width', makeLineWidth(s.hoverWidth, s.width));
+        }
 
-        // function updateLegend() {
-        //     const layerName = currentLayer === 'epci' ? 'EPCI' : 'Communes';
-        // document.getElementById('legend-title').textContent = currentLabel + ' — ' + layerName;
-        // }
+        // ── Visibility + line style ───────────────────────────────────────────
+
+        function setLayerVisibility(layer, mode) {
+            // Hide all sub-layers first
+            ['fill', 'line', 'circle', 'label'].forEach(t => {
+                map.setLayoutProperty(layer + '-' + t, 'visibility', 'none');
+            });
+
+            if (mode === 'boundary') {
+                map.setLayoutProperty(layer + '-fill', 'visibility', 'visible');
+                map.setLayoutProperty(layer + '-label', 'visibility', 'visible');
+            } else {
+                // centroid: show circles, hide fill (transparent background)
+                map.setLayoutProperty(layer + '-circle', 'visibility', 'visible');
+            }
+
+            // Line is always visible — style changes by mode
+            map.setLayoutProperty(layer + '-line', 'visibility', 'visible');
+            applyLineStyle(layer, mode);
+        }
 
         function switchLayer(layer) {
-            const prev = currentLayer;
-            currentLayer = layer;
-            ['fill', 'line', 'label'].forEach(t => {
-                map.setLayoutProperty(prev + '-' + t, 'visibility', 'none');
-                map.setLayoutProperty(layer + '-' + t, 'visibility', 'visible');
+            ['fill', 'line', 'circle', 'label'].forEach(t => {
+                map.setLayoutProperty(currentLayer + '-' + t, 'visibility', 'none');
             });
-            // updateLegend();
+            currentLayer = layer;
+            setLayerVisibility(layer, currentMode);
         }
 
-        function switchMetric(metric, label) {
-            currentMetric = metric;
+        function switchMode(mode) {
+            currentMode = mode;
+            setLayerVisibility(currentLayer, mode);
+        }
+
+        function switchTag(tag, label) {
+            currentTag = tag;
             currentLabel = label;
             ['regions', 'departements', 'epci', 'communes'].forEach(l => {
-                map.setPaintProperty(l + '-fill', 'fill-color', makeFillColor(metric));
+                map.setPaintProperty(l + '-fill', 'fill-color', makeFillColor(tag));
+                map.setPaintProperty(l + '-circle', 'circle-color', makeFillColor(tag));
             });
-            updateLegend();
         }
+
+        // ── Button listeners ──────────────────────────────────────────────────
 
         document.querySelectorAll('.layer-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -456,16 +547,25 @@
             });
         });
 
-        document.querySelectorAll('.metric-btn').forEach(btn => {
+        document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.metric-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                switchMetric(btn.dataset.metric, btn.dataset.label);
+                switchMode(btn.dataset.mode);
             });
         });
 
-        // All metrics definition (used in click popup)
-        const ALL_METRICS = [
+        document.querySelectorAll('.tag-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                switchTag(btn.dataset.tag, btn.dataset.label);
+            });
+        });
+
+        // ── Popup helpers ─────────────────────────────────────────────────────
+
+        const ALL_TAGS = [
             { key: 'nb_siret', label: 'SIRET' },
             { key: 'nb_name', label: 'Name' },
             { key: 'nb_phone', label: 'Phone' },
@@ -494,142 +594,152 @@
             }
         }
 
-        function buildHoverHTML(f, fillId) {
-            const code = f.code ?? f.code_commune ?? 'N/A';
-            const nom = f.nom ?? f.commune ?? 'N/A';
+        function buildHoverHTML(f) {
             const nb_pois = f.nb_pois ?? 0;
-            const val = nb_pois > 0 ? Math.trunc((f[currentMetric] ?? 0) / nb_pois * 100) : 0;
-            return `
-                <div style="font-family:sans-serif;font-size:12px;">
-                    <b>${code} - ${nom}</b><br/>
-                    POIs: ${nb_pois}<br/>
-                    ${currentLabel}: ${val}%
-                </div>`;
+            const freshness = f.avg_days_since_pois_update ?? 'N/A';
+            const val = nb_pois > 0 ? Math.trunc((f[currentTag] ?? 0) / nb_pois * 100) : 0;
+            return `<div style="font-family:sans-serif;font-size:12px;">
+                <b>${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</b><br/>
+                POIs: ${nb_pois.toLocaleString()} - Fraîcheur moyenne: ${freshness} j<br/>
+                ${currentLabel}: ${val}%
+            </div>`;
         }
 
-        function buildClickHTML(f, fillId) {
-            const code = f.code ?? f.code_commune ?? 'N/A'
-            const nom = f.nom ?? 'N/A';
+        function buildClickHTML(f) {
             const nb_pois = f.nb_pois ?? 0;
+            const freshness = f.avg_days_since_pois_update ?? 'N/A';
             const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
-
-
-            const rows = ALL_METRICS.map(({ key, label }) => {
+            const rows = ALL_TAGS.map(({ key, label }) => {
                 const p = pct(key);
                 const color = pctColor(p);
-                return `
-                    <tr>
-                        <td style="padding:3px 10px 3px 0;color:#555;white-space:nowrap;">${label}</td>
-                        <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:8px;">${p}%</td>
-                        <td style="padding:3px 0;width:90px;">
-                            <div style="background:#eee;border-radius:3px;height:7px;overflow:hidden;">
-                                <div style="background:${color};border-radius:3px;height:7px;width:${p}%;transition:width 0.3s;"></div>
-                            </div>
-                        </td>
-                    </tr>`;
+                return `<tr>
+                    <td style="padding:3px 10px 3px 0;color:#555;white-space:nowrap;">${label}</td>
+                    <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:8px;">${p}%</td>
+                    <td style="padding:3px 0;width:90px;">
+                        <div style="background:#eee;border-radius:3px;height:7px;overflow:hidden;">
+                            <div style="background:${color};border-radius:3px;height:7px;width:${p}%;transition:width 0.3s;"></div>
+                        </div>
+                    </td>
+                </tr>`;
             }).join('');
-
-            return `
-                <div style="font-family:sans-serif;font-size:12px;min-width:220px;">
-                    <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${code} - ${nom}</div>
-                    <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
-                        Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>
-                    </div>
-                    <table style="border-collapse:collapse;width:100%;">${rows}</table>
-                </div>`;
+            return `<div style="font-family:sans-serif;font-size:12px;min-width:220px;">
+                <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</div>
+                <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
+                    Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b> - Moyenne fraîcheur: <b style="color:#111;">${freshness}</b> jours
+                </div>
+                <table style="border-collapse:collapse;width:100%;">${rows}</table>
+            </div>`;
         }
 
-        // Hover popup — transient, no close button
-        const hoverPopup = new maplibregl.Popup({
-            closeButton: false,
-            closeOnClick: false
-        });
+        // ── Popups ────────────────────────────────────────────────────────────
 
-        // Click popup — persistent, with close button
-        const clickPopup = new maplibregl.Popup({
-            closeButton: true,
-            closeOnClick: false,
-            maxWidth: '300px'
-        });
+        const hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+        const clickPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: '300px' });
 
-        function attachHover(fillId) {
+        // ── Hover: boundary polygons ──────────────────────────────────────────
+
+        function attachBoundaryHover(fillId) {
             const sourceName = fillId.replace('-fill', '');
             const sourceLayer = sourceName + '_stats';
+            let hoveredStateId = null;
 
             map.on('mousemove', fillId, (e) => {
-                if (currentLayer !== sourceName) return;
+                if (currentLayer !== sourceName || currentMode !== 'boundary') return;
                 map.getCanvas().style.cursor = 'pointer';
-
-                const f = e.features[0].properties;
-
-                hoverPopup
-                    .setLngLat(e.lngLat)
-                    .setHTML(buildHoverHTML(f, fillId))
-                    .addTo(map);
-
+                hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
                 if (hoveredStateId) {
-                    map.setFeatureState(
-                        { source: sourceName, sourceLayer: sourceLayer, id: hoveredStateId },
-                        { hover: false }
-                    );
+                    map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
                 }
                 hoveredStateId = e.features[0].id;
-                map.setFeatureState(
-                    { source: sourceName, sourceLayer: sourceLayer, id: hoveredStateId },
-                    { hover: true }
-                );
+                map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: true });
             });
 
             map.on('mouseleave', fillId, () => {
                 map.getCanvas().style.cursor = '';
                 hoverPopup.remove();
                 if (hoveredStateId) {
-                    map.setFeatureState(
-                        { source: sourceName, sourceLayer: sourceLayer, id: hoveredStateId },
-                        { hover: false }
-                    );
+                    map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
                 }
                 hoveredStateId = null;
             });
 
             map.on('click', fillId, (e) => {
-                if (currentLayer !== sourceName) return;
-                const f = e.features[0].properties;
-                clickPopup
-                    .setLngLat(e.lngLat)
-                    .setHTML(buildClickHTML(f, fillId))
-                    .addTo(map);
+                if (currentLayer !== sourceName || currentMode !== 'boundary') return;
+                clickPopup.setLngLat(e.lngLat).setHTML(buildClickHTML(e.features[0].properties)).addTo(map);
             });
         }
 
+        // ── Hover: centroid circles ───────────────────────────────────────────
+
+        function attachCentroidHover(circleId) {
+            const sourceName = circleId.replace('-circle', '');
+            const sourceLayer = sourceName + '_stats_centroid';
+            let hoveredCentroidId = null;
+
+            map.on('mousemove', circleId, (e) => {
+                if (currentLayer !== sourceName || currentMode !== 'centroid') return;
+                map.getCanvas().style.cursor = 'pointer';
+                hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
+
+                if (hoveredCentroidId !== null) {
+                    map.setFeatureState(
+                        { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                        { hover: false }
+                    );
+                }
+                hoveredCentroidId = e.features[0].id;
+                map.setFeatureState(
+                    { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                    { hover: true }
+                );
+            });
+
+            map.on('mouseleave', circleId, () => {
+                if (currentMode !== 'centroid') return;
+                map.getCanvas().style.cursor = '';
+                hoverPopup.remove();
+                if (hoveredCentroidId !== null) {
+                    map.setFeatureState(
+                        { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                        { hover: false }
+                    );
+                }
+                hoveredCentroidId = null;
+            });
+
+            map.on('click', circleId, (e) => {
+                if (currentLayer !== sourceName || currentMode !== 'centroid') return;
+                clickPopup.setLngLat(e.lngLat).setHTML(buildClickHTML(e.features[0].properties)).addTo(map);
+            });
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────
+
         map.on('load', () => {
-            attachHover('regions-fill');
-            attachHover('departements-fill');
-            attachHover('epci-fill');
-            attachHover('communes-fill');
+            attachBoundaryHover('regions-fill');
+            attachBoundaryHover('departements-fill');
+            attachBoundaryHover('epci-fill');
+            attachBoundaryHover('communes-fill');
+
+            attachCentroidHover('regions-circle');
+            attachCentroidHover('departements-circle');
+            attachCentroidHover('epci-circle');
+            attachCentroidHover('communes-circle');
         });
 
-        map.on('moveend', () => {
-            const zoom = map.getZoom();
-            console.log('Zoom: ', zoom);
-        });
+        // map.on('moveend', () => {
+        //     console.log('Zoom: ', map.getZoom());
+        // });
 
-        const updatedAt = "2026-04-18T12:27:59Z";
-
-        const date = new Date(updatedAt);
-
-        const exact = date.toLocaleString('fr-FR', {
+        const updatedAt = "2026-04-19T14:52:15Z";
+        const date_formatted = new Date(updatedAt).toLocaleString('fr-FR', {
             dateStyle: 'medium',
             timeStyle: 'short'
         });
-
-        const el = document.getElementById('update-time');
-        el.innerHTML = `
+        document.getElementById('update-time').innerHTML = `
             <span style="color:#666;font-size:11px;">
-                Mise à jour : <b>${exact}</b>
-            </span>
-        `;
-        
+                Mise à jour des données OSM: <b>${date_formatted}</b>
+            </span>`;
     </script>
 </body>
 
