@@ -353,6 +353,10 @@
             </div>
         
             <hr class="divider" />
+
+            <p class="section-label">Temps moyen depuis maj POIs</p>
+            <button class="tag-btn" data-tag="__freshness__" data-label="Fraîcheur des POIs">Fraîcheur moyenne</button>
+            <hr class="divider" />
         
             <p class="section-label">Tags</p>
             <button class="tag-btn" data-tag="nb_siret" data-label="Complétude SIRET" title="Tag ref:FR:SIRET">SIRET</button>
@@ -553,6 +557,22 @@ out skel qt;`;
 
             return expression;
         }
+
+        function makeFreshnessFillColor() {
+                // 0 days → green, 180 days → yellow, 365+ days → red
+                return [
+                    'case',
+                    ['==', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 0],
+                    'rgba(0,0,0,0)',
+                    [
+                        'interpolate', ['linear'],
+                        ['to-number', ['coalesce', ['get', 'avg_days_since_pois_update'], 365]],
+                        365, '#1a9850',
+                        730, '#fee08b',
+                        1825, '#d73027'
+                    ]
+                ];
+            }
 
         function makeLineWidth(hoverW, normalW) {
             return ['case', ['boolean', ['feature-state', 'hover'], false], hoverW, normalW];
@@ -782,7 +802,7 @@ out skel qt;`;
 
         let currentLayer = localStorage.getItem('osm_layer') ?? 'epci';
         let currentTag = localStorage.getItem('osm_tag') ?? 'nb_siret';
-        let currentLabel = document.querySelector(`.tag-btn[data-tag="${currentTag}"]`)?.dataset.label ?? 'Complétude SIRET';
+        let currentLabel = document.querySelector(`.tag-btn[data-tag="${currentTag}"]`)?.dataset.label;
         let currentMode = localStorage.getItem('osm_mode') ?? 'boundary';
         let currentCircleSize = localStorage.getItem('osm_circleSize') ?? 'total';
 
@@ -839,21 +859,53 @@ out skel qt;`;
             currentMode = mode;
             setLayerVisibility(currentLayer, mode);
             document.getElementById('circle-size-section').style.display =
-                mode === 'centroid' ? 'block' : 'none';
+                (mode === 'centroid' && currentTag !== '__freshness__') ? 'block' : 'none';
         }
 
         function switchTag(tag, label) {
             localStorage.setItem('osm_tag', tag);
             currentTag = tag;
             currentLabel = label;
-            ['regions', 'departements', 'epci', 'communes'].forEach(l => {
-                map.setPaintProperty(l + '-fill', 'fill-color', makeFillColor(tag));
-                map.setPaintProperty(l + '-circle', 'circle-color', makeFillColor(tag, currentCircleSize === 'missing'));
 
-                if (currentCircleSize === 'missing') {
+            const isFreshness = tag === '__freshness__';
+            const fillExpr = isFreshness ? makeFreshnessFillColor() : makeFillColor(tag);
+            const circleExpr = isFreshness ? makeFreshnessFillColor()
+                : makeFillColor(tag, currentCircleSize === 'missing');
+
+
+            ['regions', 'departements', 'epci', 'communes'].forEach(l => {
+                map.setPaintProperty(l + '-fill', 'fill-color', fillExpr);
+                map.setPaintProperty(l + '-circle', 'circle-color', circleExpr);
+
+                if (!isFreshness && currentCircleSize === 'missing') {
                     map.setPaintProperty(l + '-circle', 'circle-radius', makeCircleRadius(l, 'missing', tag));
                 }
             });
+
+            if (isFreshness) {
+                document.getElementById('legend-bar').style.background =
+                    'linear-gradient(to right, #1a9850, #fee08b, #d73027)';
+                document.querySelectorAll('#legend-labels span')[0].textContent = '≤1 an';
+                document.querySelectorAll('#legend-labels span')[1].textContent = '2 ans';
+                document.querySelectorAll('#legend-labels span')[2].textContent = '≥5 ans';
+            } else {
+                document.getElementById('legend-bar').style.background =
+                    'linear-gradient(to right, #d73027, #fee08b, #1a9850)';
+                document.querySelectorAll('#legend-labels span')[0].textContent = '0%';
+                document.querySelectorAll('#legend-labels span')[1].textContent = '50%';
+                document.querySelectorAll('#legend-labels span')[2].textContent = '100%';
+            }
+
+            if (isFreshness) {
+                currentCircleSize = 'total';
+                document.querySelectorAll('.circle-size-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.circleSize === 'total'));
+                ['regions', 'departements', 'epci', 'communes'].forEach(l =>
+                    map.setPaintProperty(l + '-circle', 'circle-radius', makeCircleRadius(l, 'total', tag)));
+            }
+
+            document.getElementById('circle-size-section').style.display =
+                (currentMode === 'centroid' && !isFreshness) ? 'block' : 'none';
         }
 
         function applyCircleRadius() {
@@ -934,73 +986,83 @@ out skel qt;`;
             }
         }
 
-        function buildHoverHTML(f) {
-            const nb_pois = f.nb_pois ?? 0;
-            const freshness = f.avg_days_since_pois_update ?? 'N/A';
-            const val = nb_pois > 0 ? Math.trunc((f[currentTag] ?? 0) / nb_pois * 100) : 0;
-            const missing = nb_pois - (f[currentTag] ?? 0);
-            const html_if_pois = nb_pois > 0 ? `
+    function buildHoverHTML(f) {
+        const nb_pois = f.nb_pois ?? 0;
+        const freshness = f.avg_days_since_pois_update ?? 'N/A';
+        const isFreshness = currentTag === '__freshness__';
+
+        let detail = '';
+        if (nb_pois > 0) {
+            if (isFreshness) {
+                detail = `<br/>Fraîcheur moyenne: <b>${freshness}</b> j`;
+            } else {
+                const val = Math.trunc((f[currentTag] ?? 0) / nb_pois * 100);
+                const missing = nb_pois - (f[currentTag] ?? 0);
+                detail = `
                  - Fraîcheur moyenne: ${freshness} j<br/>
                 ${currentLabel}: <b>${val}%</b><br/>
-                POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b>
-                ` : ``;
-            return `<div style="font-family:sans-serif;font-size:12px;">
-                <b>${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</b><br/>
-                POIs: ${nb_pois.toLocaleString()}${html_if_pois}</div>
-                <div style="color:#aaa;font-size:10px;">Cliquer pour le détail</div>`;
-        }
-
-        function buildClickHTML(f) {
-            const nb_pois = f.nb_pois ?? 0;
-            const freshness = f.avg_days_since_pois_update ?? 'N/A';
-            const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
-            const missing = nb_pois - (f[currentTag] ?? 0);
-
-            const rows = ALL_TAGS.map(({ key, label }) => {
-                const p = pct(key);
-                const color = pctColor(p);
-                return `<tr>
-                    <td style="padding:3px 10px 3px 0;color:#555;white-space:nowrap;">${label}</td>
-                    <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:8px;">${p}%</td>
-                    <td style="padding:3px 0;width:90px;">
-                        <div style="background:#eee;border-radius:3px;height:7px;overflow:hidden;">
-                            <div style="background:${color};border-radius:3px;height:7px;width:${p}%;transition:width 0.3s;"></div>
-                        </div>
-                    </td>
-                </tr>`;
-            }).join('');
-
-            let overpassSection = '';
-
-            const html_if_pois = nb_pois > 0 ? `
-                 - Fraîcheur moyenne: <b style="color:#111;">${freshness}</b> jours
-                </div>
-                <table style="border-collapse:collapse;width:100%;">${rows}</table>
-                <div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b></div>` : `</div>`;
-
-            // ── Overpass Turbo link — communes only ───────────────────────────
-            // f.osm_id is the OSM relation ID stored in the communes pmtiles
-            if ((currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
-                const overpassUrl = buildOverpassUrl(f.nom, f.osm_id, currentTag);
-                if (overpassUrl) {
-                    overpassSection = `
-                        <div>
-                            <a href="${overpassUrl}" target="_blank"
-                               style="display:inline-flex;align-items:center;gap:5px;
-                                      color:#1a56db;text-decoration:none;font-size:11px;font-weight:500;">
-                                Voir sur Overpass Turbo
-                            </a>
-                        </div>`;
-                }
+                POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b>`;
             }
-
-            return `<div style="font-family:sans-serif;font-size:12px;min-width:220px;">
-                <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</div>
-                <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
-                    Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>${html_if_pois}
-                ${overpassSection}
-            </div>`;
         }
+
+        return `<div style="font-family:sans-serif;font-size:12px;">
+        <b>${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</b><br/>
+        POIs: ${nb_pois.toLocaleString()}${detail}</div>
+        ${nb_pois > 0 ? '<div style="color:#aaa;font-size:10px;">Cliquer pour le détail</div>' : ''}`;
+    }
+
+    function buildClickHTML(f) {
+        const nb_pois = f.nb_pois ?? 0;
+        const freshness = f.avg_days_since_pois_update ?? 'N/A';
+        const isFreshness = currentTag === '__freshness__';
+        const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
+
+        const rows = ALL_TAGS.map(({ key, label }) => {
+            const p = pct(key);
+            const color = pctColor(p);
+            return `<tr>
+            <td style="padding:3px 10px 3px 0;color:#555;white-space:nowrap;">${label}</td>
+            <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:8px;">${p}%</td>
+            <td style="padding:3px 0;width:90px;">
+                <div style="background:#eee;border-radius:3px;height:7px;overflow:hidden;">
+                    <div style="background:${color};border-radius:3px;height:7px;width:${p}%;transition:width 0.3s;"></div>
+                </div>
+            </td>
+        </tr>`;
+        }).join('');
+
+        let overpassSection = '';
+        if (!isFreshness && (currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
+            const overpassUrl = buildOverpassUrl(f.nom, f.osm_id, currentTag);
+            if (overpassUrl) {
+                overpassSection = `<div>
+                <a href="${overpassUrl}" target="_blank"
+                   style="display:inline-flex;align-items:center;gap:5px;
+                          color:#1a56db;text-decoration:none;font-size:11px;font-weight:500;">
+                    Voir sur Overpass Turbo
+                </a>
+            </div>`;
+            }
+        }
+
+        const missingLine = (!isFreshness && nb_pois > 0)
+            ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${(nb_pois - (f[currentTag] ?? 0)).toLocaleString()}</b></div>`
+            : '';
+
+        const html_if_pois = nb_pois > 0
+            ? ` - Fraîcheur moyenne: <b style="color:#111;">${freshness}</b> jours
+            </div>
+            <table style="border-collapse:collapse;width:100%;">${rows}</table>
+            ${missingLine}`
+            : `</div>`;
+
+        return `<div style="font-family:sans-serif;font-size:12px;min-width:220px;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</div>
+        <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
+            Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>${html_if_pois}
+        ${overpassSection}
+    </div>`;
+    }
 
         // ── Popups ────────────────────────────────────────────────────────────
 
@@ -1102,13 +1164,6 @@ out skel qt;`;
             attachCentroidHover('epci-circle');
             attachCentroidHover('communes-circle');
 
-            // setLayerVisibility(currentLayer, currentMode);
-            // switchTag(currentTag, currentLabel);
-            // if (currentMode === 'centroid') {
-            //     document.getElementById('circle-size-section').style.display = 'block';
-            //     applyCircleRadius();
-            // }
-
             document.querySelector('.layer-btn.active')?.click();
             document.querySelector('.mode-btn.active')?.click();
             document.querySelector('.circle-size-btn.active')?.click();
@@ -1122,15 +1177,22 @@ out skel qt;`;
             localStorage.setItem('osm_lat', lat);
         });
 
-        const updatedAt = "2026-04-27T20:41:55Z";
-        const date_formatted = new Date(updatedAt).toLocaleString('fr-FR', {
-            dateStyle: 'medium',
-            timeStyle: 'short'
-        });
-        document.getElementById('update-time').innerHTML = `
-            <span style="color:#666;font-size:11px;">
-                Mise à jour des données OSM: <b>${date_formatted}</b>
-            </span>`;
+        async function loadUpdateTimestamp() {
+            try {
+                const res = await fetch('update_timestamp.json');
+                const { updated_at } = await res.json();
+                document.getElementById('update-time').innerHTML = `
+        <span style="color:#666;font-size:11px;">
+            Mise à jour des données OSM: <b>${new Date(updated_at).toLocaleString('fr-FR', {
+                    dateStyle: 'medium', timeStyle: 'short'
+                })}</b>
+        </span>`;
+            } catch (e) {
+                console.warn('Could not read update timestamp', e);
+            }
+        }
+
+        loadUpdateTimestamp();
     </script>
 </body>
 
