@@ -3,25 +3,29 @@
 
 <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Complétude POIs OSM</title>
     <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@latest/dist/pmtiles.js"></script>
     <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             font-family: sans-serif;
         }
 
-        h2 {
-            color: #000;
-            text-align: center;
-        }
-
         #map {
             width: 100%;
-            height: 100vh;
+            height: 100dvh;
         }
+
+        /* ── Controls panel ─────────────────────────────────────── */
 
         #controls {
             position: absolute;
@@ -32,7 +36,56 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             padding: 12px 16px;
-            max-width: 260px;
+            width: 260px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        /* Collapsed state on mobile */
+        #controls.collapsed {
+            transform: translateX(calc(-100% - 20px));
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Mobile toggle button */
+        #toggle-controls {
+            display: none;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 11;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            padding: 10px 12px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            color: #444;
+        }
+
+        #toggle-controls:hover {
+            background: #f0f0f0;
+        }
+
+        /* Mobile backdrop */
+        #controls-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        h2 {
+            color: #000;
+            text-align: center;
+            font-size: 13px;
+            margin: 0 0 10px;
+            line-height: 1.4;
         }
 
         #source-code {
@@ -139,9 +192,45 @@
             font-weight: 500;
         }
 
+        #circle-size-section {
+            display: none;
+        }
+
+        .circle-size-row {
+            display: flex;
+            flex-direction: row;
+            gap: 6px;
+            margin-bottom: 0;
+        }
+
+        .circle-size-btn {
+            flex: 1;
+            padding: 7px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            color: #444;
+            text-align: center;
+        }
+
+        .circle-size-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .circle-size-btn.active {
+            background: #e8f0fe;
+            border-color: #4285f4;
+            color: #1a56db;
+            font-weight: 500;
+        }
+
+        /* ── Legend ─────────────────────────────────────────────── */
+
         #legend {
             position: absolute;
-            bottom: 36px;
+            bottom: 10px;
             left: 10px;
             z-index: 10;
             background: white;
@@ -165,6 +254,8 @@
             color: #666;
         }
 
+        /* ── Popup ──────────────────────────────────────────────── */
+
         .maplibregl-popup-close-button {
             font-size: 16px;
             color: #888;
@@ -175,81 +266,317 @@
             color: #333;
             background: transparent;
         }
+
+        /* ── Mobile breakpoint ──────────────────────────────────── */
+
+        @media (max-width: 600px) {
+
+            /* Show the toggle button */
+            #toggle-controls {
+                display: block;
+            }
+
+            /* Panel slides in from left, full-width-ish */
+            #controls {
+                top: 0;
+                left: 0;
+                border-radius: 0 8px 8px 0;
+                width: min(280px, 88vw);
+                max-height: 100vh;
+                padding-top: 16px;
+                padding-bottom: 16px;
+            }
+
+            /* When open, show backdrop */
+            #controls:not(.collapsed)~#controls-backdrop {
+                display: block;
+            }
+
+            /* Legend moves up a touch on mobile so it clears the map controls */
+            #legend {
+                bottom: 10px;
+                left: 10px;
+            }
+
+            /* Popups shouldn't overflow screen */
+            .maplibregl-popup-content {
+                max-width: 85vw !important;
+            }
+        }
+
+        /* ── Tablet: slightly narrower panel ────────────────────── */
+
+        @media (min-width: 601px) and (max-width: 900px) {
+            #controls {
+                width: 230px;
+            }
+        }
     </style>
 </head>
 
 <body>
-    <div id="map"></div>
-
-    <div id="controls">
-        <h2>Complétude des POIs OSM par territoire</h2>
-
-        <p class="section-label">Couche</p>
-        <div class="toggle-row">
-            <button class="layer-btn" data-layer="regions">Régions</button>
-            <button class="layer-btn" data-layer="departements">Départements</button>
-            <button class="layer-btn active" data-layer="epci">EPCI</button>
-            <button class="layer-btn" data-layer="communes">Communes</button>
+    <div id="map">
+        <!-- Mobile hamburger toggle -->
+        <button id="toggle-controls" aria-label="Ouvrir le panneau de contrôle">☰</button>
+        
+        <!-- Click-outside backdrop (mobile only) -->
+        <div id="controls-backdrop"></div>
+        
+        <div id="controls">
+            <h2>Complétude des POIs OSM par territoire</h2>
+        
+            <p class="section-label">Couche</p>
+            <div class="toggle-row">
+                <button class="layer-btn" data-layer="regions">Régions</button>
+                <button class="layer-btn" data-layer="departements">Départements</button>
+                <button class="layer-btn" data-layer="epci">EPCI</button>
+                <button class="layer-btn" data-layer="communes">Communes</button>
+            </div>
+        
+            <hr class="divider" />
+        
+            <p class="section-label">Mode d'affichage</p>
+            <div class="mode-row">
+                <button class="mode-btn" data-mode="boundary">Boundaries</button>
+                <button class="mode-btn" data-mode="centroid">Cercles</button>
+            </div>
+        
+            <div id="circle-size-section">
+                <hr class="divider" />
+                <p class="section-label">Taille des cercles</p>
+                <div class="mode-row">
+                    <button class="circle-size-btn" data-circle-size="total"
+                        title="Taille proportionnelle au nombre total de POIs">Total POIs</button>
+                    <button class="circle-size-btn" data-circle-size="missing"
+                        title="Taille proportionnelle aux POIs sans le tag sélectionné">POIs sans le tag</button>
+                </div>
+            </div>
+        
+            <hr class="divider" />
+        
+            <p class="section-label">Tags</p>
+            <button class="tag-btn" data-tag="nb_siret" data-label="Complétude SIRET" title="Tag ref:FR:SIRET">SIRET</button>
+            <button class="tag-btn" data-tag="nb_name" data-label="Complétude Name" title="Tag name">Name</button>
+            <button class="tag-btn" data-tag="nb_phone" data-label="Complétude Phone"
+                title="Tags phone, contact:phone">Phone</button>
+            <button class="tag-btn" data-tag="nb_website_merge" data-label="Complétude Website, Fb, Insta"
+                title="Tags website, contact:website, facebook, contact:facebook, instagram, contact:instagram">Website |
+                Facebook | Instagram</button>
+            <button class="tag-btn" data-tag="nb_email" data-label="Complétude Email"
+                title="Tags email, contact:email">Email</button>
+            <button class="tag-btn" data-tag="nb_opening_hours" data-label="Complétude Opening hours"
+                title="Tag opening_hours">Opening hours</button>
+            <button class="tag-btn" data-tag="nb_wheelchair" data-label="Complétude Wheelchair"
+                title="Tag wheelchair">Wheelchair</button>
+            <br>
+            <div id="update-time"></div>
+            <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" id="source-code">Code
+                source</a>
         </div>
-
-        <hr class="divider" />
-
-        <p class="section-label">Mode d'affichage</p>
-        <div class="mode-row">
-            <button class="mode-btn active" data-mode="boundary">Boundaries</button>
-            <button class="mode-btn" data-mode="centroid">Cercles</button>
+        
+        <div id="legend">
+            <div id="legend-bar"></div>
+            <div id="legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>
         </div>
-
-        <hr class="divider" />
-
-        <p class="section-label">Tags</p>
-        <button class="tag-btn active" data-tag="nb_siret" data-label="Complétude SIRET">SIRET</button>
-        <button class="tag-btn" data-tag="nb_name" data-label="Complétude Name">Name</button>
-        <button class="tag-btn" data-tag="nb_phone" data-label="Complétude Phone">Phone</button>
-        <button class="tag-btn" data-tag="nb_website_merge" data-label="Complétude Website, Fb, Insta">Website |
-            Facebook | Instagram</button>
-        <button class="tag-btn" data-tag="nb_email" data-label="Complétude Email">Email</button>
-        <button class="tag-btn" data-tag="nb_opening_hours" data-label="Complétude Opening hours">Opening hours</button>
-        <button class="tag-btn" data-tag="nb_wheelchair" data-label="Complétude Wheelchair">Wheelchair</button>
-
-        <br>
-        <div id="update-time"></div>
-        <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" id="source-code">Code
-            source</a>
     </div>
 
-    <div id="legend">
-        <div id="legend-bar"></div>
-        <div id="legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>
-    </div>
 
     <script>
+        // ── Mobile panel toggle ───────────────────────────────────────────────
+
+        const controlsPanel = document.getElementById('controls');
+        const toggleBtn = document.getElementById('toggle-controls');
+        const backdrop = document.getElementById('controls-backdrop');
+
+        const isTouch = window.matchMedia('(hover: none)').matches;
+
+        function isMobile() { return window.innerWidth <= 600; }
+
+        function openPanel() {
+            controlsPanel.classList.remove('collapsed');
+            toggleBtn.textContent = '✕';
+            backdrop.style.display = 'block';
+        }
+
+        function closePanel() {
+            controlsPanel.classList.add('collapsed');
+            toggleBtn.textContent = '☰';
+            backdrop.style.display = 'none';
+        }
+
+        function initPanelState() {
+            if (isMobile()) {
+                closePanel();
+            } else {
+                controlsPanel.classList.remove('collapsed');
+                backdrop.style.display = 'none';
+            }
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            if (controlsPanel.classList.contains('collapsed')) {
+                openPanel();
+            } else {
+                closePanel();
+            }
+        });
+
+        backdrop.addEventListener('click', closePanel);
+
+        document.querySelectorAll('.tag-btn, .layer-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (isMobile()) closePanel();
+            });
+        });
+
+        window.addEventListener('resize', initPanelState);
+        initPanelState();
+
+        // ── MapLibre setup ────────────────────────────────────────────────────
+
         const protocol = new pmtiles.Protocol();
         maplibregl.addProtocol("pmtiles", protocol.tile);
 
         const COLOR_STOPS = [0, '#d73027', 0.5, '#fee08b', 1, '#1a9850'];
 
-        // Line appearance per mode
         const LINE_STYLE = {
             boundary: { color: '#555', width: 1, hoverWidth: 3 },
             centroid: { color: '#888', width: 1, hoverWidth: 3 }
         };
 
-        function makeFillColor(tag) {
-            return [
+        const CIRCLE_RADIUS_RANGES = {
+            regions: [6, 4, 12, 50],
+            departements: [6, 4, 11, 40],
+            epci: [4, 4, 10, 30],
+            communes: [2, 5, 9, 30]
+        };
+
+        // ── Overpass Turbo helpers ────────────────────────────────────────────
+
+        // Maps nb_* property keys → array of OSM tags that count as "present"
+        // The Overpass filter will exclude features that have ANY of these tags.
+        const OVERPASS_TAG_MAP = {
+            nb_siret: ['ref:FR:SIRET'],
+            nb_name: ['name'],
+            nb_phone: ['phone', 'contact:phone'],
+            nb_website_merge: ['website', 'contact:website', 'facebook', 'contact:facebook', 'instagram', 'contact:instagram'],
+            nb_email: ['email', 'contact:email'],
+            nb_opening_hours: ['opening_hours'],
+            nb_wheelchair: ['wheelchair'],
+        };
+
+        // POI type filters shared across all Overpass queries (same list as the reference URL)
+        const OVERPASS_TYPE_FILTERS = [
+            ['amenity',
+                'restaurant|fast_food|cafe|fuel|pharmacy|bank|bar|hospital|post_office|clinic|pub|car_wash|ice_cream|driving_school|cinema|car_rental|nightclub|bureau_de_change|studio|internet_cafe|money_transfer|casino|vehicle_inspection|frozen_food|boat_rental|coworking_space|workshop|personal_service|camping|dancing_school|training|ski_school|ski_rental|dive_centre|driver_training|nursing_home|funeral_hall|doctors|dentist|theatre|kindergarten|language_school|stripclub|veterinary'.split("|").sort().join("|"),
+                'public_bookcase|public_building',
+                ''],
+            ['shop',
+                'convenience|supermarket|clothes|hairdresser|car_repair|bakery|beauty|car|hardware|mobile_phone|butcher|furniture|car_parts|alcohol|florist|scooter|variety_store|electronics|shoes|optician|jewelry|mall|gift|doityourself|greengrocer|books|bicycle|chemist|department_store|laundry|travel_agency|stationery|pet|sports|confectionery|tyres|cosmetics|computer|tailor|tobacco|storage_rental|dry_cleaning|trade|copyshop|motorcycle|funeral_directors|beverages|newsagent|garden_centre|massage|pastry|interior_decoration|general|deli|toys|houseware|wine|seafood|pawnbroker|tattoo|paint|wholesale|photo|second_hand|bed|kitchen|outdoor|fabric|antiques|coffee|gas|e-cigarette|perfumery|craft|hearing_aids|money_lender|appliance|electrical|tea|motorcycle_repair|boutique|baby_goods|bag|musical_instrument|dairy|pet_grooming|music|carpet|rental|fashion_accessories|cheese|canabis|chocolate|medical_supply|leather|sewing|cannabis|locksmith|games|video_games|hifi|window_blind|caravan|tool_hire|household_linen|bathroom_furnishing|shoe_repair|watches|nutrition_supplements|fishing|erotic|frame|grocery|boat|repair|weapons|gold_buyer|lighting|pottery|security|groundskeeping|herbalist|curtain|health_food|flooring|printer_ink|anime|camera|scuba_diving|candles|printing|garden_furniture|food'.split("|").sort().join("|"),
+                'kiosk|vacant'],
+            ['office',
+                'company|estate_agent|insurance|telecommunication|it|accountant|employment_agency|tax_advisor|financial|advertising_agency|logistics|newspaper|financial_advisor|consulting|travel_agent|coworking|moving_company|lawyer|architect|construction_company|developer|credit_broker|graphic_design|construction|property_management|cleaning|notary'.split("|").sort().join("|"),
+                ''],
+            ['craft',
+                'carpenter|winery|metal_construction|electronics_repair|photographer|electrician|brewery|hvac|plumber|tailor|shoemaker|sawmill|caterer|window_construction|gardener|dressmaker|confectionery|stonemason|glaziery|painter|roofer|builder|key_cutter|upholsterer|cleaning|pottery|distillery|jeweller|handicraft|joiner|agricultural_engines|tiler|insulation|clockmaker|sculptor|printer|cabinet_maker'.split("|").sort().join("|"),
+                ''],
+            ['tourism',
+                'hotel|hostel|guest_house|motel'.split("|").sort().join("|"),
+                ''],
+        ];
+
+        /**
+         * Builds an Overpass Turbo URL showing POIs inside a commune
+         * that are missing ALL of the tags associated with the selected key.
+         *
+         * @param {number|string} osmRelId - OSM relation ID of the commune (from osm_id property)
+         * @param {string}        tagKey   - nb_* property key (e.g. 'nb_siret')
+         * @returns {string|null} Full Overpass Turbo URL, or null if inputs are invalid
+         */
+        function buildOverpassUrl(name, osmRelId, tagKey) {
+            const osmTags = OVERPASS_TAG_MAP[tagKey];
+            if (!osmTags?.length || !osmRelId) return null;
+
+            // Exclude features that have ANY of the tags for this key
+            // e.g. phone → [!"phone"][!"contact:phone"]
+            const tagFilter = osmTags.map(t => `[!"${t}"]`).join('');
+
+            const filterLines = OVERPASS_TYPE_FILTERS
+                .map(([typeKey, includeValues, excludeValues]) => {
+                    const include = `["${typeKey}"~"${includeValues}"]`;
+                    const exclude = excludeValues
+                        ? `["${typeKey}"!~"${excludeValues}"]`
+                        : '';
+                    return `nwr${include}${exclude}${tagFilter}(area.territoire);`;
+                })
+                .join('\n\n');
+
+            const query =
+                `//POIs de ${name} sans ${osmTags.map(t => `${t}`).join(', ')}\n
+[out:json];
+rel(${osmRelId});map_to_area->.territoire;
+(
+${filterLines}
+);
+out body;
+>;
+out skel qt;`;
+
+            return `https://overpass-turbo.eu/?Q=${encodeURIComponent(query)}&R`;
+        }
+
+        // ── MapLibre expression helpers ───────────────────────────────────────
+
+        function makeFillColor(tag, missing_values_tag = false) {
+            const expression = [
                 'case',
-                ['>', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 0],
-                [
-                    'interpolate', ['linear'],
-                    ['/', ['to-number', ['coalesce', ['get', tag], 0]], ['to-number', ['get', 'nb_pois']]],
-                    ...COLOR_STOPS
-                ],
+                ['==', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 0],
                 'rgba(0,0,0,0)'
             ];
+
+            if (missing_values_tag) {
+                expression.push(
+                    ['==', ['to-number', ['coalesce', ['get', tag], 0]], ['to-number', ['coalesce', ['get', 'nb_pois'], 0]]],
+                    'rgba(0,0,0,0)'
+                );
+            }
+
+            expression.push([
+                'interpolate', ['linear'],
+                [
+                    '/',
+                    ['to-number', ['coalesce', ['get', tag], 0]],
+                    ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]  // ← prevent 0/0
+                ],
+                ...COLOR_STOPS
+            ]);
+
+            return expression;
         }
 
         function makeLineWidth(hoverW, normalW) {
             return ['case', ['boolean', ['feature-state', 'hover'], false], hoverW, normalW];
+        }
+
+        function makeCircleRadius(layer, sizeMode, tag) {
+            const [lnMin, rMin, lnMax, rMax] = CIRCLE_RADIUS_RANGES[layer];
+
+            const sizeExpr = sizeMode === 'missing'
+                ? ['max',
+                    ['-',
+                        ['to-number', ['coalesce', ['get', 'nb_pois'], 0]],
+                        ['to-number', ['coalesce', ['get', tag], 0]]
+                    ],
+                    0
+                ]
+                : ['to-number', ['coalesce', ['get', 'nb_pois'], 0]];
+
+            return [
+                'interpolate', ['linear'],
+                ['ln', ['max', sizeExpr, 1]],
+                lnMin, rMin,
+                lnMax, rMax
+            ];
         }
 
         const map = new maplibregl.Map({
@@ -310,13 +637,13 @@
                     {
                         id: 'epci-fill', type: 'fill', source: 'epci',
                         'source-layer': 'epci_stats', minzoom: 3,
-                        layout: { visibility: 'visible' },
+                        layout: { visibility: 'none' },
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
                         id: 'epci-line', type: 'line', source: 'epci',
                         'source-layer': 'epci_stats', minzoom: 3,
-                        layout: { visibility: 'visible' },
+                        layout: { visibility: 'none' },
                         paint: {
                             'line-color': LINE_STYLE.boundary.color,
                             'line-width': makeLineWidth(LINE_STYLE.boundary.hoverWidth, LINE_STYLE.boundary.width)
@@ -345,12 +672,7 @@
                         layout: { visibility: 'none' },
                         paint: {
                             'circle-color': makeFillColor('nb_siret'),
-                            'circle-radius': [
-                                'interpolate', ['linear'],
-                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
-                                6, 4,  // ln(1) = 0  -> rayon min
-                                12, 50 // ln(60000) = 11 -> rayon max
-                            ],
+                            'circle-radius': makeCircleRadius('regions', 'total', 'nb_siret'),
                             'circle-opacity': 0.85,
                             'circle-stroke-color': LINE_STYLE.centroid.color,
                             'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
@@ -362,12 +684,7 @@
                         layout: { visibility: 'none' },
                         paint: {
                             'circle-color': makeFillColor('nb_siret'),
-                            'circle-radius': [
-                                'interpolate', ['linear'],
-                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
-                                6, 4,
-                                11, 40 // ln(22000) = 10
-                            ],
+                            'circle-radius': makeCircleRadius('departements', 'total', 'nb_siret'),
                             'circle-opacity': 0.85,
                             'circle-stroke-color': LINE_STYLE.centroid.color,
                             'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
@@ -379,12 +696,7 @@
                         layout: { visibility: 'none' },
                         paint: {
                             'circle-color': makeFillColor('nb_siret'),
-                            'circle-radius': [
-                                'interpolate', ['linear'],
-                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
-                                4, 4,
-                                10, 30 // ln(8000) = 9
-                            ],
+                            'circle-radius': makeCircleRadius('epci', 'total', 'nb_siret'),
                             'circle-opacity': 0.85,
                             'circle-stroke-color': LINE_STYLE.centroid.color,
                             'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
@@ -396,12 +708,7 @@
                         layout: { visibility: 'none' },
                         paint: {
                             'circle-color': makeFillColor('nb_siret'),
-                            'circle-radius': [
-                                'interpolate', ['linear'],
-                                ['ln', ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]],
-                                2, 5,
-                                9, 30
-                            ],
+                            'circle-radius': makeCircleRadius('communes', 'total', 'nb_siret'),
                             'circle-opacity': 0.85,
                             'circle-stroke-color': LINE_STYLE.centroid.color,
                             'circle-stroke-width': makeLineWidth(LINE_STYLE.centroid.hoverWidth, LINE_STYLE.centroid.width)
@@ -410,10 +717,7 @@
 
                     // ── Labels ───────────────────────────────────────────────────
                     {
-                        id: 'regions-label',
-                        type: 'symbol',
-                        source: 'regions_labels',
-                        // 'source-layer': 'regions_labels',
+                        id: 'regions-label', type: 'symbol', source: 'regions_labels',
                         minzoom: 6,
                         layout: {
                             'visibility': 'none', 'text-field': ['get', 'nom'],
@@ -423,10 +727,7 @@
                         paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 1 }
                     },
                     {
-                        id: 'departements-label',
-                        type: 'symbol',
-                        source: 'departements_labels',
-                        // 'source-layer': 'departements_labels',
+                        id: 'departements-label', type: 'symbol', source: 'departements_labels',
                         minzoom: 6,
                         layout: {
                             'visibility': 'none', 'text-field': ['get', 'nom'],
@@ -436,13 +737,10 @@
                         paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 1 }
                     },
                     {
-                        id: 'epci-label',
-                        type: 'symbol',
-                        source: 'epci_labels',
-                        // 'source-layer': 'epci_labels',
+                        id: 'epci-label', type: 'symbol', source: 'epci_labels',
                         minzoom: 8,
                         layout: {
-                            visibility: 'visible', 'text-field': ['get', 'nom'],
+                            visibility: 'none', 'text-field': ['get', 'nom'],
                             'text-font': ['Open Sans Regular'], 'text-size': 13,
                             'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
@@ -457,12 +755,16 @@
                             'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
                         paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 1 }
-                    }
+                    },
+
                 ]
             },
-            center: [2.5, 46.5],
+            center: [
+                parseFloat(localStorage.getItem('osm_lng')) || 2.5,
+                parseFloat(localStorage.getItem('osm_lat')) || 46.5
+            ],
             maxZoom: 13,
-            zoom: 5,
+            zoom: parseFloat(localStorage.getItem('osm_zoom')) || 5,
             attributionControl: false
         })
             .addControl(new maplibregl.AttributionControl({
@@ -475,17 +777,28 @@
             .addControl(new maplibregl.NavigationControl({ visualizePitch: 'true' }), 'top-right')
             .addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
             .addControl(new maplibregl.GlobeControl(), 'top-right')
-            .addControl(new maplibregl.FullscreenControl());
+            .addControl(new maplibregl.FullscreenControl())
+            .addControl(new maplibregl.GeolocateControl({ trackUserLocation: 'true' }));
 
+        let currentLayer = localStorage.getItem('osm_layer') ?? 'epci';
+        let currentTag = localStorage.getItem('osm_tag') ?? 'nb_siret';
+        let currentLabel = document.querySelector(`.tag-btn[data-tag="${currentTag}"]`)?.dataset.label ?? 'Complétude SIRET';
+        let currentMode = localStorage.getItem('osm_mode') ?? 'boundary';
+        let currentCircleSize = localStorage.getItem('osm_circleSize') ?? 'total';
 
-        const getActive = (selector, attr) =>
-            document.querySelector(selector + '.active')?.dataset[attr];
+        function syncButtonsToState() {
+            document.querySelectorAll('.layer-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.layer === currentLayer));
+            document.querySelectorAll('.tag-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.tag === currentTag));
+            document.querySelectorAll('.mode-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.mode === currentMode));
+            document.querySelectorAll('.circle-size-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.circleSize === currentCircleSize));
+        }
 
-        let currentLayer = getActive('.layer-btn', 'layer');
-        let currentTag = getActive('.tag-btn', 'tag');
-        let currentLabel = getActive('.tag-btn', 'label');
-        let currentMode = getActive('.mode-btn', 'mode');
-        
+        syncButtonsToState();
+
         // ── Apply line paint for a layer according to current mode ────────────
 
         function applyLineStyle(layer, mode) {
@@ -497,7 +810,6 @@
         // ── Visibility + line style ───────────────────────────────────────────
 
         function setLayerVisibility(layer, mode) {
-            // Hide all sub-layers first
             ['fill', 'line', 'circle', 'label'].forEach(t => {
                 map.setLayoutProperty(layer + '-' + t, 'visibility', 'none');
             });
@@ -506,16 +818,15 @@
                 map.setLayoutProperty(layer + '-fill', 'visibility', 'visible');
                 map.setLayoutProperty(layer + '-label', 'visibility', 'visible');
             } else {
-                // centroid: show circles, hide fill (transparent background)
                 map.setLayoutProperty(layer + '-circle', 'visibility', 'visible');
             }
 
-            // Line is always visible — style changes by mode
             map.setLayoutProperty(layer + '-line', 'visibility', 'visible');
             applyLineStyle(layer, mode);
         }
 
         function switchLayer(layer) {
+            localStorage.setItem('osm_layer', layer);
             ['fill', 'line', 'circle', 'label'].forEach(t => {
                 map.setLayoutProperty(currentLayer + '-' + t, 'visibility', 'none');
             });
@@ -524,17 +835,38 @@
         }
 
         function switchMode(mode) {
+            localStorage.setItem('osm_mode', mode);
             currentMode = mode;
             setLayerVisibility(currentLayer, mode);
+            document.getElementById('circle-size-section').style.display =
+                mode === 'centroid' ? 'block' : 'none';
         }
 
         function switchTag(tag, label) {
+            localStorage.setItem('osm_tag', tag);
             currentTag = tag;
             currentLabel = label;
             ['regions', 'departements', 'epci', 'communes'].forEach(l => {
                 map.setPaintProperty(l + '-fill', 'fill-color', makeFillColor(tag));
-                map.setPaintProperty(l + '-circle', 'circle-color', makeFillColor(tag));
+                map.setPaintProperty(l + '-circle', 'circle-color', makeFillColor(tag, currentCircleSize === 'missing'));
+
+                if (currentCircleSize === 'missing') {
+                    map.setPaintProperty(l + '-circle', 'circle-radius', makeCircleRadius(l, 'missing', tag));
+                }
             });
+        }
+
+        function applyCircleRadius() {
+            ['regions', 'departements', 'epci', 'communes'].forEach(l => {
+                map.setPaintProperty(l + '-circle', 'circle-radius', makeCircleRadius(l, currentCircleSize, currentTag));
+                map.setPaintProperty(l + '-circle', 'circle-color', makeFillColor(currentTag, currentCircleSize === 'missing'));
+            });
+        }
+
+        function switchCircleSize(sizeMode) {
+            localStorage.setItem('osm_circleSize', sizeMode);
+            currentCircleSize = sizeMode;
+            applyCircleRadius();
         }
 
         // ── Button listeners ──────────────────────────────────────────────────
@@ -560,6 +892,14 @@
                 document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 switchTag(btn.dataset.tag, btn.dataset.label);
+            });
+        });
+
+        document.querySelectorAll('.circle-size-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.circle-size-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                switchCircleSize(btn.dataset.circleSize);
             });
         });
 
@@ -598,17 +938,24 @@
             const nb_pois = f.nb_pois ?? 0;
             const freshness = f.avg_days_since_pois_update ?? 'N/A';
             const val = nb_pois > 0 ? Math.trunc((f[currentTag] ?? 0) / nb_pois * 100) : 0;
+            const missing = nb_pois - (f[currentTag] ?? 0);
+            const html_if_pois = nb_pois > 0 ? `
+                 - Fraîcheur moyenne: ${freshness} j<br/>
+                ${currentLabel}: <b>${val}%</b><br/>
+                POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b>
+                ` : ``;
             return `<div style="font-family:sans-serif;font-size:12px;">
                 <b>${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</b><br/>
-                POIs: ${nb_pois.toLocaleString()} - Fraîcheur moyenne: ${freshness} j<br/>
-                ${currentLabel}: ${val}%
-            </div>`;
+                POIs: ${nb_pois.toLocaleString()}${html_if_pois}</div>
+                <div style="color:#aaa;font-size:10px;">Cliquer pour le détail</div>`;
         }
 
         function buildClickHTML(f) {
             const nb_pois = f.nb_pois ?? 0;
             const freshness = f.avg_days_since_pois_update ?? 'N/A';
             const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
+            const missing = nb_pois - (f[currentTag] ?? 0);
+
             const rows = ALL_TAGS.map(({ key, label }) => {
                 const p = pct(key);
                 const color = pctColor(p);
@@ -622,12 +969,36 @@
                     </td>
                 </tr>`;
             }).join('');
+
+            let overpassSection = '';
+
+            const html_if_pois = nb_pois > 0 ? `
+                 - Fraîcheur moyenne: <b style="color:#111;">${freshness}</b> jours
+                </div>
+                <table style="border-collapse:collapse;width:100%;">${rows}</table>
+                <div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b></div>` : `</div>`;
+
+            // ── Overpass Turbo link — communes only ───────────────────────────
+            // f.osm_id is the OSM relation ID stored in the communes pmtiles
+            if ((currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
+                const overpassUrl = buildOverpassUrl(f.nom, f.osm_id, currentTag);
+                if (overpassUrl) {
+                    overpassSection = `
+                        <div>
+                            <a href="${overpassUrl}" target="_blank"
+                               style="display:inline-flex;align-items:center;gap:5px;
+                                      color:#1a56db;text-decoration:none;font-size:11px;font-weight:500;">
+                                Voir sur Overpass Turbo
+                            </a>
+                        </div>`;
+                }
+            }
+
             return `<div style="font-family:sans-serif;font-size:12px;min-width:220px;">
                 <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</div>
                 <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
-                    Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b> - Moyenne fraîcheur: <b style="color:#111;">${freshness}</b> jours
-                </div>
-                <table style="border-collapse:collapse;width:100%;">${rows}</table>
+                    Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>${html_if_pois}
+                ${overpassSection}
             </div>`;
         }
 
@@ -643,25 +1014,27 @@
             const sourceLayer = sourceName + '_stats';
             let hoveredStateId = null;
 
-            map.on('mousemove', fillId, (e) => {
-                if (currentLayer !== sourceName || currentMode !== 'boundary') return;
-                map.getCanvas().style.cursor = 'pointer';
-                hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
-                if (hoveredStateId) {
-                    map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
-                }
-                hoveredStateId = e.features[0].id;
-                map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: true });
-            });
+            if (!isTouch) {
+                map.on('mousemove', fillId, (e) => {
+                    if (currentLayer !== sourceName || currentMode !== 'boundary') return;
+                    map.getCanvas().style.cursor = 'pointer';
+                    hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
+                    if (hoveredStateId) {
+                        map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
+                    }
+                    hoveredStateId = e.features[0].id;
+                    map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: true });
+                });
 
-            map.on('mouseleave', fillId, () => {
-                map.getCanvas().style.cursor = '';
-                hoverPopup.remove();
-                if (hoveredStateId) {
-                    map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
-                }
-                hoveredStateId = null;
-            });
+                map.on('mouseleave', fillId, () => {
+                    map.getCanvas().style.cursor = '';
+                    hoverPopup.remove();
+                    if (hoveredStateId) {
+                        map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
+                    }
+                    hoveredStateId = null;
+                });
+            }
 
             map.on('click', fillId, (e) => {
                 if (currentLayer !== sourceName || currentMode !== 'boundary') return;
@@ -676,42 +1049,45 @@
             const sourceLayer = sourceName + '_stats_centroid';
             let hoveredCentroidId = null;
 
-            map.on('mousemove', circleId, (e) => {
-                if (currentLayer !== sourceName || currentMode !== 'centroid') return;
-                map.getCanvas().style.cursor = 'pointer';
-                hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
+            if (!isTouch) {
+                map.on('mousemove', circleId, (e) => {
+                    if (currentLayer !== sourceName || currentMode !== 'centroid') return;
+                    map.getCanvas().style.cursor = 'pointer';
+                    hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
 
-                if (hoveredCentroidId !== null) {
+                    if (hoveredCentroidId !== null) {
+                        map.setFeatureState(
+                            { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                            { hover: false }
+                        );
+                    }
+                    hoveredCentroidId = e.features[0].id;
                     map.setFeatureState(
                         { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
-                        { hover: false }
+                        { hover: true }
                     );
-                }
-                hoveredCentroidId = e.features[0].id;
-                map.setFeatureState(
-                    { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
-                    { hover: true }
-                );
-            });
+                });
 
-            map.on('mouseleave', circleId, () => {
-                if (currentMode !== 'centroid') return;
-                map.getCanvas().style.cursor = '';
-                hoverPopup.remove();
-                if (hoveredCentroidId !== null) {
-                    map.setFeatureState(
-                        { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
-                        { hover: false }
-                    );
-                }
-                hoveredCentroidId = null;
-            });
+                map.on('mouseleave', circleId, () => {
+                    if (currentMode !== 'centroid') return;
+                    map.getCanvas().style.cursor = '';
+                    hoverPopup.remove();
+                    if (hoveredCentroidId !== null) {
+                        map.setFeatureState(
+                            { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                            { hover: false }
+                        );
+                    }
+                    hoveredCentroidId = null;
+                });
+            }
 
             map.on('click', circleId, (e) => {
                 if (currentLayer !== sourceName || currentMode !== 'centroid') return;
                 clickPopup.setLngLat(e.lngLat).setHTML(buildClickHTML(e.features[0].properties)).addTo(map);
             });
         }
+
 
         // ── Init ──────────────────────────────────────────────────────────────
 
@@ -725,13 +1101,28 @@
             attachCentroidHover('departements-circle');
             attachCentroidHover('epci-circle');
             attachCentroidHover('communes-circle');
+
+            // setLayerVisibility(currentLayer, currentMode);
+            // switchTag(currentTag, currentLabel);
+            // if (currentMode === 'centroid') {
+            //     document.getElementById('circle-size-section').style.display = 'block';
+            //     applyCircleRadius();
+            // }
+
+            document.querySelector('.layer-btn.active')?.click();
+            document.querySelector('.mode-btn.active')?.click();
+            document.querySelector('.circle-size-btn.active')?.click();
+            document.querySelector('.tag-btn.active')?.click();
         });
 
-        // map.on('moveend', () => {
-        //     console.log('Zoom: ', map.getZoom());
-        // });
+        map.on('moveend', () => {
+            const { lng, lat } = map.getCenter();
+            localStorage.setItem('osm_zoom', map.getZoom());
+            localStorage.setItem('osm_lng', lng);
+            localStorage.setItem('osm_lat', lat);
+        });
 
-        const updatedAt = "2026-04-19T14:52:15Z";
+        const updatedAt = "2026-04-27T20:41:55Z";
         const date_formatted = new Date(updatedAt).toLocaleString('fr-FR', {
             dateStyle: 'medium',
             timeStyle: 'short'
