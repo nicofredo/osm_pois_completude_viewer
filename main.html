@@ -605,20 +605,20 @@ out skel qt;`;
                 version: 8,
                 sources: {
                     osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
-                    regions: { type: "vector", url: "pmtiles://regions.pmtiles", promoteId: 'code' },
-                    departements: { type: "vector", url: "pmtiles://departements.pmtiles", promoteId: 'code' },
-                    epci: { type: "vector", url: "pmtiles://epci.pmtiles", promoteId: 'code' },
-                    communes: { type: "vector", url: "pmtiles://communes.pmtiles", promoteId: 'code' },
+                    regions: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/regions_stats.pmtiles", promoteId: 'code' },
+                    departements: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/departements_stats.pmtiles", promoteId: 'code' },
+                    epci: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/epci_stats.pmtiles", promoteId: 'code' },
+                    communes: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/communes_stats.pmtiles", promoteId: 'code' },
 
-                    regions_centroid: { type: "vector", url: "pmtiles://regions_centroid.pmtiles", promoteId: 'code' },
-                    departements_centroid: { type: "vector", url: "pmtiles://departements_centroid.pmtiles", promoteId: 'code' },
-                    epci_centroid: { type: "vector", url: "pmtiles://epci_centroid.pmtiles", promoteId: 'code' },
-                    communes_centroid: { type: "vector", url: "pmtiles://communes_centroid.pmtiles", promoteId: 'code' },
+                    regions_centroid: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/regions_stats_centroid.pmtiles", promoteId: 'code' },
+                    departements_centroid: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/departements_stats_centroid.pmtiles", promoteId: 'code' },
+                    epci_centroid: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/epci_stats_centroid.pmtiles", promoteId: 'code' },
+                    communes_centroid: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/communes_stats_centroid.pmtiles", promoteId: 'code' },
 
-                    regions_labels: { type: "geojson", data: "regions_labels.geojson" },
-                    departements_labels: { type: "geojson", data: "departements_labels.geojson" },
-                    epci_labels: { type: "geojson", data: "epci_labels.geojson" },
-                    communes_labels: { type: "vector", url: "pmtiles://communes_labels.pmtiles" }
+                    regions_labels: { type: "geojson", data: "https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/regions_labels.geojson" },
+                    departements_labels: { type: "geojson", data: "https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/departements_labels.geojson" },
+                    epci_labels: { type: "geojson", data: "https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/epci_labels.geojson" },
+                    communes_labels: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/communes_labels.pmtiles" }
                 },
                 layers: [
                     { id: "osm", type: "raster", source: "osm" },
@@ -1179,7 +1179,7 @@ out skel qt;`;
 
         async function loadUpdateTimestamp() {
             try {
-                const res = await fetch('update_timestamp.json');
+                const res = await fetch('https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/update_timestamp.json');
                 const { updated_at } = await res.json();
                 document.getElementById('update-time').innerHTML = `
         <span style="color:#666;font-size:11px;">
