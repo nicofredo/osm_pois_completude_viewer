@@ -31,13 +31,13 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            z-index: 10;
+            z-index: 11;
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             padding: 12px 16px;
             width: 260px;
-            max-height: calc(100vh - 80px);
+            max-height: calc(100dvh - 80px);
             overflow-y: auto;
             transition: transform 0.3s ease, opacity 0.3s ease;
         }
@@ -83,7 +83,7 @@
         h2 {
             color: #000;
             text-align: center;
-            font-size: 13px;
+            font-size: 16px;
             margin: 0 0 10px;
             line-height: 1.4;
         }
@@ -282,7 +282,7 @@
                 left: 0;
                 border-radius: 0 8px 8px 0;
                 width: min(280px, 88vw);
-                max-height: 100vh;
+                max-height: 100dvh;
                 padding-top: 16px;
                 padding-bottom: 16px;
             }
@@ -318,13 +318,13 @@
     <div id="map">
         <!-- Mobile hamburger toggle -->
         <button id="toggle-controls" aria-label="Ouvrir le panneau de contrôle">☰</button>
-        
+
         <!-- Click-outside backdrop (mobile only) -->
         <div id="controls-backdrop"></div>
-        
+
         <div id="controls">
             <h2>Complétude des POIs OSM par territoire</h2>
-        
+
             <p class="section-label">Couche</p>
             <div class="toggle-row">
                 <button class="layer-btn" data-layer="regions">Régions</button>
@@ -332,15 +332,20 @@
                 <button class="layer-btn" data-layer="epci">EPCI</button>
                 <button class="layer-btn" data-layer="communes">Communes</button>
             </div>
-        
+
             <hr class="divider" />
-        
+
             <p class="section-label">Mode d'affichage</p>
             <div class="mode-row">
                 <button class="mode-btn" data-mode="boundary">Boundaries</button>
                 <button class="mode-btn" data-mode="centroid">Cercles</button>
             </div>
-        
+
+            <hr class="divider" />
+
+            <p class="section-label">Temps moyen depuis maj POIs</p>
+            <button class="tag-btn" data-tag="__freshness__" data-label="Fraîcheur des POIs">Fraîcheur moyenne</button>
+
             <div id="circle-size-section">
                 <hr class="divider" />
                 <p class="section-label">Taille des cercles</p>
@@ -351,13 +356,9 @@
                         title="Taille proportionnelle aux POIs sans le tag sélectionné">POIs sans le tag</button>
                 </div>
             </div>
-        
+
             <hr class="divider" />
 
-            <p class="section-label">Temps moyen depuis maj POIs</p>
-            <button class="tag-btn" data-tag="__freshness__" data-label="Fraîcheur des POIs">Fraîcheur moyenne</button>
-            <hr class="divider" />
-        
             <p class="section-label">Tags</p>
             <button class="tag-btn" data-tag="nb_siret" data-label="Complétude SIRET" title="Tag ref:FR:SIRET">SIRET</button>
             <button class="tag-btn" data-tag="nb_name" data-label="Complétude Name" title="Tag name">Name</button>
@@ -377,7 +378,7 @@
             <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" id="source-code">Code
                 source</a>
         </div>
-        
+
         <div id="legend">
             <div id="legend-bar"></div>
             <div id="legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>
@@ -436,6 +437,46 @@
         window.addEventListener('resize', initPanelState);
         initPanelState();
 
+        // ── History data ──────────────────────────────────────────────────────
+        // Keyed by layer name → { [code]: { nb_pois, nb_siret, … } }
+        // Populated asynchronously from history.json
+        let historyData = {};
+
+        async function loadHistoryData() {
+            try {
+                const res = await fetch('https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/history.json');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                historyData = await res.json();
+            } catch (e) {
+                console.warn('Could not load history.json — delta badges will be hidden.', e);
+            }
+        }
+
+        /**
+         * Returns the history snapshot for a given layer + feature code,
+         * or null if unavailable.
+         */
+        function getHistoryEntry(layer, code) {
+            const layerHistory = historyData['layers'][layer];
+            if (!layerHistory || !code) return null;
+            return layerHistory[String(code)] ?? null;
+        }
+
+        /**
+         * Renders a delta badge: "▲ +3pp" in green or "▼ −2pp" in red.
+         * delta is in percentage-points (current% − history%).
+         * Returns an HTML string, or '' if delta is 0 / unavailable.
+         */
+        function deltaBadge(delta) {
+            if (delta === null || delta === undefined || isNaN(delta)) return '';
+            const trunced = Math.trunc(delta);
+            if (trunced === 0) return '<span style="color:#bbb;font-size:10px;">0%</span>';
+            const up = trunced > 0;
+            const color = up ? '#1a9850' : '#d73027';
+            const sign = up ? '+' : '';
+            return `<span style="color:${color};font-size:10px;font-weight:600;white-space:nowrap;">${sign}${trunced}%</span>`;
+        }
+
         // ── MapLibre setup ────────────────────────────────────────────────────
 
         const protocol = new pmtiles.Protocol();
@@ -457,8 +498,6 @@
 
         // ── Overpass Turbo helpers ────────────────────────────────────────────
 
-        // Maps nb_* property keys → array of OSM tags that count as "present"
-        // The Overpass filter will exclude features that have ANY of these tags.
         const OVERPASS_TAG_MAP = {
             nb_siret: ['ref:FR:SIRET'],
             nb_name: ['name'],
@@ -469,7 +508,6 @@
             nb_wheelchair: ['wheelchair'],
         };
 
-        // POI type filters shared across all Overpass queries (same list as the reference URL)
         const OVERPASS_TYPE_FILTERS = [
             ['amenity',
                 'restaurant|fast_food|cafe|fuel|pharmacy|bank|bar|hospital|post_office|clinic|pub|car_wash|ice_cream|driving_school|cinema|car_rental|nightclub|bureau_de_change|studio|internet_cafe|money_transfer|casino|vehicle_inspection|frozen_food|boat_rental|coworking_space|workshop|personal_service|camping|dancing_school|training|ski_school|ski_rental|dive_centre|driver_training|nursing_home|funeral_hall|doctors|dentist|theatre|kindergarten|language_school|stripclub|veterinary'.split("|").sort().join("|"),
@@ -489,14 +527,6 @@
                 ''],
         ];
 
-        /**
-         * Builds an Overpass Turbo URL showing POIs inside a commune
-         * that are missing ALL of the tags associated with the selected key.
-         *
-         * @param {number|string} osmRelId - OSM relation ID of the commune (from osm_id property)
-         * @param {string}        tagKey   - nb_* property key (e.g. 'nb_siret')
-         * @returns {string|null} Full Overpass Turbo URL, or null if inputs are invalid
-         */
         function buildOverpassUrl(name, osmRelId, tagKey) {
             const osmTags = OVERPASS_TAG_MAP[tagKey];
             if (!osmTags?.length || !osmRelId) return null;
@@ -508,9 +538,7 @@
             const filterLines = OVERPASS_TYPE_FILTERS
                 .map(([typeKey, includeValues, excludeValues]) => {
                     const include = `["${typeKey}"~"${includeValues}"]`;
-                    const exclude = excludeValues
-                        ? `["${typeKey}"!~"${excludeValues}"]`
-                        : '';
+                    const exclude = excludeValues ? `["${typeKey}"!~"${excludeValues}"]` : '';
                     return `nwr${include}${exclude}${tagFilter}(area.territoire);`;
                 })
                 .join('\n\n');
@@ -550,7 +578,7 @@ out skel qt;`;
                 [
                     '/',
                     ['to-number', ['coalesce', ['get', tag], 0]],
-                    ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]  // ← prevent 0/0
+                    ['max', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 1]
                 ],
                 ...COLOR_STOPS
             ]);
@@ -560,19 +588,19 @@ out skel qt;`;
 
         function makeFreshnessFillColor() {
                 // 0 days → green, 180 days → yellow, 365+ days → red
-                return [
-                    'case',
-                    ['==', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 0],
-                    'rgba(0,0,0,0)',
-                    [
-                        'interpolate', ['linear'],
-                        ['to-number', ['coalesce', ['get', 'avg_days_since_pois_update'], 365]],
-                        365, '#1a9850',
-                        730, '#fee08b',
-                        1825, '#d73027'
-                    ]
-                ];
-            }
+            return [
+                'case',
+                ['==', ['to-number', ['coalesce', ['get', 'nb_pois'], 0]], 0],
+                'rgba(0,0,0,0)',
+                [
+                    'interpolate', ['linear'],
+                    ['to-number', ['coalesce', ['get', 'avg_days_since_pois_update'], 365]],
+                    365, '#1a9850',
+                    730, '#fee08b',
+                    1825, '#d73027'
+                ]
+            ];
+        }
 
         function makeLineWidth(hoverW, normalW) {
             return ['case', ['boolean', ['feature-state', 'hover'], false], hoverW, normalW];
@@ -872,7 +900,6 @@ out skel qt;`;
             const circleExpr = isFreshness ? makeFreshnessFillColor()
                 : makeFillColor(tag, currentCircleSize === 'missing');
 
-
             ['regions', 'departements', 'epci', 'communes'].forEach(l => {
                 map.setPaintProperty(l + '-fill', 'fill-color', fillExpr);
                 map.setPaintProperty(l + '-circle', 'circle-color', circleExpr);
@@ -986,88 +1013,132 @@ out skel qt;`;
             }
         }
 
-    function buildHoverHTML(f) {
-        const nb_pois = f.nb_pois ?? 0;
-        const freshness = f.avg_days_since_pois_update ?? 'N/A';
-        const isFreshness = currentTag === '__freshness__';
+        function buildHoverHTML(f) {
+            const nb_pois = f.nb_pois ?? 0;
+            const freshness = f.avg_days_since_pois_update ?? 'N/A';
+            const isFreshness = currentTag === '__freshness__';
 
-        let detail = '';
-        if (nb_pois > 0) {
-            if (isFreshness) {
-                detail = `<br/>Fraîcheur moyenne: <b>${freshness}</b> j`;
-            } else {
-                const val = Math.trunc((f[currentTag] ?? 0) / nb_pois * 100);
-                const missing = nb_pois - (f[currentTag] ?? 0);
-                detail = `
-                 - Fraîcheur moyenne: ${freshness} j<br/>
-                ${currentLabel}: <b>${val}%</b><br/>
-                POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b>`;
+            let detail = '';
+            if (nb_pois > 0) {
+                if (isFreshness) {
+                    detail = `<br/>Fraîcheur moyenne: <b>${freshness}</b> j`;
+                } else {
+                    const val = Math.trunc((f[currentTag] ?? 0) / nb_pois * 100);
+                    const missing = nb_pois - (f[currentTag] ?? 0);
+                    detail = `
+                    - Fraîcheur moyenne: ${freshness} j<br/>
+                    ${currentLabel}: <b>${val}%</b><br/>
+                    POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b>`;
+                }
             }
+
+            return `<div style="font-family:sans-serif;font-size:12px;">
+            <b>${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</b><br/>
+            POIs: ${nb_pois.toLocaleString()}${detail}</div>
+            ${nb_pois > 0 ? '<div style="color:#aaa;font-size:10px;">Cliquer pour le détail</div>' : ''}`;
         }
 
-        return `<div style="font-family:sans-serif;font-size:12px;">
-        <b>${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</b><br/>
-        POIs: ${nb_pois.toLocaleString()}${detail}</div>
-        ${nb_pois > 0 ? '<div style="color:#aaa;font-size:10px;">Cliquer pour le détail</div>' : ''}`;
-    }
+        function buildClickHTML(f) {
+            const nb_pois = f.nb_pois ?? 0;
+            const freshness = f.avg_days_since_pois_update ?? 'N/A';
+            const isFreshness = currentTag === '__freshness__';
+            const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
 
-    function buildClickHTML(f) {
-        const nb_pois = f.nb_pois ?? 0;
-        const freshness = f.avg_days_since_pois_update ?? 'N/A';
-        const isFreshness = currentTag === '__freshness__';
-        const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
+            // ── History delta ─────────────────────────────────────────────────
+            // Look up the historical snapshot for this feature (layer + code).
+            // historyData is keyed by layer name → { [code]: { nb_pois, nb_siret, … } }
+            const hist = getHistoryEntry(currentLayer, f.code);
 
-        const rows = ALL_TAGS.map(({ key, label }) => {
-            const p = pct(key);
-            const color = pctColor(p);
-            return `<tr>
-            <td style="padding:3px 10px 3px 0;color:#555;white-space:nowrap;">${label}</td>
-            <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:8px;">${p}%</td>
-            <td style="padding:3px 0;width:90px;">
-                <div style="background:#eee;border-radius:3px;height:7px;overflow:hidden;">
-                    <div style="background:${color};border-radius:3px;height:7px;width:${p}%;transition:width 0.3s;"></div>
+            /**
+             * Computes the delta in percentage-points for a given tag key.
+             * Returns null if history is unavailable or nb_pois was 0 then.
+             */
+            function computeDelta(f, key) {
+                if (!hist || !hist.nb_pois || hist.nb_pois === 0 || nb_pois === 0) return null;
+                const histPct = (hist[key]) / hist.nb_pois * 100;
+                const curPct = f[key] / nb_pois * 100;
+                return curPct - histPct;
+            }
+
+            // Header note: show "vs historique" label only when history exists for this layer
+            const hasHistory = !!(historyData['layers'][currentLayer][String(f.code)]);
+            const historyLabel = hasHistory
+                ? `<span style="color:#aaa;font-size:10px;font-weight:400;margin-left:4px;">et évolution depuis ${new Date(historyData['date']).toLocaleDateString( 'fr-FR', { dateStyle: 'medium' })}</span>`
+                : '';
+
+            const poisDelta = hasHistory ? nb_pois - historyData['layers'][currentLayer][String(f.code)].nb_pois
+                : null;
+
+            const poisDeltaBadge = poisDelta !== null
+                ? (() => {
+                    if (poisDelta === 0) return '<span style="color:#bbb;font-size:10px;margin-left:4px;">(+0)</span>';
+                    const up = poisDelta > 0;
+                    const color = up ? '#1a9850' : '#d73027';
+                    const sign = up ? '+' : '';
+                    return `<span style="color:${color};font-size:10px;font-weight:600;margin-left:4px;">(${sign}${poisDelta.toLocaleString()})</span>`;
+                })()
+                : '';
+
+            const rows = ALL_TAGS.map(({ key, label }) => {
+                const p = pct(key);
+                const color = pctColor(p);
+                const delta = computeDelta(f, key);
+               const badge = deltaBadge(delta);
+
+                return `<tr>
+                <td style="padding:3px 8px 3px 0;color:#555;white-space:nowrap;">${label}</td>
+                <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:6px;white-space:nowrap;">
+                    ${badge}
+                </td>
+                <td style="padding:3px 0;font-weight:600;color:#222;text-align:right;padding-right:6px;white-space:nowrap;">
+                    ${p}%
+                </td>
+                <td style="padding:3px 0;width:80px;">
+                    <div style="background:#eee;border-radius:3px;height:7px;overflow:hidden;">
+                        <div style="background:${color};border-radius:3px;height:7px;width:${p}%;transition:width 0.3s;"></div>
+                    </div>
+                </td>
+            </tr>`;
+            }).join('');
+
+            let overpassSection = '';
+            if (!isFreshness && (currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
+                const overpassUrl = buildOverpassUrl(f.nom, f.osm_id, currentTag);
+                if (overpassUrl) {
+                    overpassSection = `<div>
+                    <a href="${overpassUrl}" target="_blank"
+                    style="display:inline-flex;align-items:center;gap:5px;
+                            color:#1a56db;text-decoration:none;font-size:11px;font-weight:500;">
+                        Voir sur Overpass Turbo
+                    </a>
+                </div>`;
+                }
+            }
+
+            const missingLine = (!isFreshness && nb_pois > 0)
+                ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${(nb_pois - (f[currentTag] ?? 0)).toLocaleString()}</b></div>`
+                : '';
+
+            const html_if_pois = nb_pois > 0
+                ? ` - Fraîcheur moyenne: <b style="color:#111;">${freshness}</b> jours
                 </div>
-            </td>
-        </tr>`;
-        }).join('');
+                <div style="font-size:10px;color:#aaa;margin-bottom:6px;">% complétude${historyLabel}</div>
+                <table style="border-collapse:collapse;width:100%;">${rows}</table>
+                ${missingLine}`
+                : `</div>`;
 
-        let overpassSection = '';
-        if (!isFreshness && (currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
-            const overpassUrl = buildOverpassUrl(f.nom, f.osm_id, currentTag);
-            if (overpassUrl) {
-                overpassSection = `<div>
-                <a href="${overpassUrl}" target="_blank"
-                   style="display:inline-flex;align-items:center;gap:5px;
-                          color:#1a56db;text-decoration:none;font-size:11px;font-weight:500;">
-                    Voir sur Overpass Turbo
-                </a>
-            </div>`;
-            }
+            return `<div style="font-family:sans-serif;font-size:12px;min-width:240px;">
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</div>
+            <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
+                Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>${poisDeltaBadge}${html_if_pois}
+            ${overpassSection}
+        </div>`;
         }
-
-        const missingLine = (!isFreshness && nb_pois > 0)
-            ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${(nb_pois - (f[currentTag] ?? 0)).toLocaleString()}</b></div>`
-            : '';
-
-        const html_if_pois = nb_pois > 0
-            ? ` - Fraîcheur moyenne: <b style="color:#111;">${freshness}</b> jours
-            </div>
-            <table style="border-collapse:collapse;width:100%;">${rows}</table>
-            ${missingLine}`
-            : `</div>`;
-
-        return `<div style="font-family:sans-serif;font-size:12px;min-width:220px;">
-        <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</div>
-        <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
-            Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>${html_if_pois}
-        ${overpassSection}
-    </div>`;
-    }
 
         // ── Popups ────────────────────────────────────────────────────────────
 
         const hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
-        const clickPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: '300px' });
+        const clickPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: '320px' });
 
         // ── Hover: boundary polygons ──────────────────────────────────────────
 
@@ -1193,6 +1264,7 @@ out skel qt;`;
         }
 
         loadUpdateTimestamp();
+        loadHistoryData(); // ← load history snapshot on startup
     </script>
 </body>
 
