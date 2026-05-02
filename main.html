@@ -375,8 +375,7 @@
                 title="Tag wheelchair">Wheelchair</button>
             <br>
             <div id="update-time"></div>
-            <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" id="source-code">Code
-                source</a>
+            <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" id="source-code">Code source</a>
         </div>
 
         <div id="legend">
@@ -1254,7 +1253,7 @@ out skel qt;`;
                 const { updated_at } = await res.json();
                 document.getElementById('update-time').innerHTML = `
         <span style="color:#666;font-size:11px;">
-            Mise à jour des données OSM: <b>${new Date(updated_at).toLocaleString('fr-FR', {
+            Mise à jour des données OSM: <br><b>${new Date(updated_at).toLocaleString('fr-FR', {
                     dateStyle: 'medium', timeStyle: 'short'
                 })}</b>
         </span>`;
