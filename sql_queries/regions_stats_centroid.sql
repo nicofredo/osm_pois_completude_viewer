@@ -1,8 +1,7 @@
-CREATE OR REPLACE VIEW analysis.communes_stats_boundaries AS
+CREATE OR REPLACE VIEW analysis.regions_stats_centroid AS
 SELECT 
     t.code,
     t.nom,
-    o.osm_id,
     count(p.*)::int AS nb_pois,
     count(p.ref_fr_siret)::int AS nb_siret,
     count(p.name)::int AS nb_name,
@@ -36,23 +35,18 @@ SELECT
     count(p.opening_hours)::int AS nb_opening_hours,
     count(p.wheelchair)::int AS nb_wheelchair,
     round(avg(EXTRACT(epoch FROM u.value::timestamptz - p."timestamp"::timestamptz)) / 86400::numeric)::int AS avg_days_since_pois_update,
-    t.geom_4326
-FROM limites_admin_insee.communes t
-LEFT JOIN limites_admin_osm.communes o ON t.code = o.code_insee
+    st_setsrid((st_maximuminscribedcircle(t.geom_4326)).center, 4326)::geometry(Point,4326) AS center
+FROM limites_admin_insee.regions t
 LEFT JOIN pois_osm_france_merge.pois p ON st_intersects(p.geom_4326, t.geom_4326)
-CROSS JOIN (
+CROSS JOIN ( 
     SELECT value
     FROM pois_osm_france_merge.osm2pgsql_properties
     WHERE property = 'replication_timestamp'
     LIMIT 1
 ) u
-WHERE 
-    t.code NOT IN ('75056', '13055', '69123')
-    AND t.code NOT LIKE '984%' 
-    AND t.code NOT LIKE '989%'
+WHERE t.code NOT IN ('984', '989')
 GROUP BY 
-    t.code, 
-    t.nom, 
-    o.osm_id, 
+    t.code,
+    t.nom,
     t.geom_4326
 ORDER BY nb_pois DESC;

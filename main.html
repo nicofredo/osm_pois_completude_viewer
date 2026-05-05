@@ -343,8 +343,8 @@
 
             <hr class="divider" />
 
-            <p class="section-label">Temps moyen depuis maj POIs</p>
-            <button class="tag-btn" data-tag="__freshness__" data-label="Fraîcheur des POIs">Fraîcheur moyenne</button>
+            <p class="section-label">Fraîcheur POIs</p>
+            <button class="tag-btn" data-tag="__freshness__" data-label="Fraîcheur des POIs">Âge moyen mise à jour POIs</button>
 
             <div id="circle-size-section">
                 <hr class="divider" />
@@ -362,8 +362,8 @@
             <p class="section-label">Tags</p>
             <button class="tag-btn" data-tag="nb_siret" data-label="Complétude SIRET" title="Tag ref:FR:SIRET">SIRET</button>
             <button class="tag-btn" data-tag="nb_name" data-label="Complétude Name" title="Tag name">Name</button>
-            <button class="tag-btn" data-tag="nb_phone" data-label="Complétude Phone"
-                title="Tags phone, contact:phone">Phone</button>
+            <button class="tag-btn" data-tag="nb_phone" data-label="Complétude Phone, Mobile"
+                title="Tags phone, contact:phone, mobile, contact:mobile">Phone | Mobile</button>
             <button class="tag-btn" data-tag="nb_website_merge" data-label="Complétude Website, Fb, Insta"
                 title="Tags website, contact:website, facebook, contact:facebook, instagram, contact:instagram">Website |
                 Facebook | Instagram</button>
@@ -500,7 +500,7 @@
         const OVERPASS_TAG_MAP = {
             nb_siret: ['ref:FR:SIRET'],
             nb_name: ['name'],
-            nb_phone: ['phone', 'contact:phone'],
+            nb_phone: ['phone', 'contact:phone', 'mobile', 'contact:mobile'],
             nb_website_merge: ['website', 'contact:website', 'facebook', 'contact:facebook', 'instagram', 'contact:instagram'],
             nb_email: ['email', 'contact:email'],
             nb_opening_hours: ['opening_hours'],
@@ -509,21 +509,20 @@
 
         const OVERPASS_TYPE_FILTERS = [
             ['amenity',
-                'restaurant|fast_food|cafe|fuel|pharmacy|bank|bar|hospital|post_office|clinic|pub|car_wash|ice_cream|driving_school|cinema|car_rental|nightclub|bureau_de_change|studio|internet_cafe|money_transfer|casino|vehicle_inspection|frozen_food|boat_rental|coworking_space|workshop|personal_service|camping|dancing_school|training|ski_school|ski_rental|dive_centre|driver_training|nursing_home|funeral_hall|doctors|dentist|theatre|kindergarten|language_school|stripclub|veterinary'.split("|").sort().join("|"),
-                'public_bookcase|public_building',
-                ''],
+            'bank|bar|boat_rental|bureau_de_change|cafe|camping|car_rental|car_wash|casino|cinema|clinic|coworking_space|dancing_school|dentist|dive_centre|doctors|driver_training|driving_school|fast_food|frozen_food|fuel|funeral_hall|hospital|ice_cream|internet_cafe|kindergarten|language_school|money_transfer|nightclub|nursing_home|personal_service|pharmacy|post_office|pub|restaurant|ski_rental|ski_school|stripclub|studio|theatre|training|vehicle_inspection|veterinary|workshop'.split("|").sort().join("|"),
+            'public_bookcase|public_building'],
             ['shop',
-                'convenience|supermarket|clothes|hairdresser|car_repair|bakery|beauty|car|hardware|mobile_phone|butcher|furniture|car_parts|alcohol|florist|scooter|variety_store|electronics|shoes|optician|jewelry|mall|gift|doityourself|greengrocer|books|bicycle|chemist|department_store|laundry|travel_agency|stationery|pet|sports|confectionery|tyres|cosmetics|computer|tailor|tobacco|storage_rental|dry_cleaning|trade|copyshop|motorcycle|funeral_directors|beverages|newsagent|garden_centre|massage|pastry|interior_decoration|general|deli|toys|houseware|wine|seafood|pawnbroker|tattoo|paint|wholesale|photo|second_hand|bed|kitchen|outdoor|fabric|antiques|coffee|gas|e-cigarette|perfumery|craft|hearing_aids|money_lender|appliance|electrical|tea|motorcycle_repair|boutique|baby_goods|bag|musical_instrument|dairy|pet_grooming|music|carpet|rental|fashion_accessories|cheese|canabis|chocolate|medical_supply|leather|sewing|cannabis|locksmith|games|video_games|hifi|window_blind|caravan|tool_hire|household_linen|bathroom_furnishing|shoe_repair|watches|nutrition_supplements|fishing|erotic|frame|grocery|boat|repair|weapons|gold_buyer|lighting|pottery|security|groundskeeping|herbalist|curtain|health_food|flooring|printer_ink|anime|camera|scuba_diving|candles|printing|garden_furniture|food'.split("|").sort().join("|"),
-                'kiosk|vacant'],
+            'alcohol|anime|antiques|appliance|baby_goods|bag|bakery|bathroom_furnishing|beauty|bed|beverages|bicycle|boat|books|boutique|butcher|camera|canabis|candles|cannabis|car|car_parts|car_repair|caravan|carpet|cheese|chemist|chocolate|clothes|coffee|computer|confectionery|convenience|copyshop|cosmetics|craft|curtain|dairy|deli|department_store|doityourself|dry_cleaning|e-cigarette|electrical|electronics|erotic|fabric|fashion_accessories|fishing|flooring|florist|food|frame|funeral_directors|furniture|games|garden_centre|garden_furniture|gas|general|gift|gold_buyer|greengrocer|grocery|groundskeeping|hairdresser|hardware|health_food|hearing_aids|herbalist|hifi|household_linen|houseware|interior_decoration|jewelry|kitchen|laundry|leather|lighting|locksmith|mall|massage|medical_supply|mobile_phone|money_lender|motorcycle|motorcycle_repair|music|musical_instrument|newsagent|nutrition_supplements|optician|outdoor|paint|pastry|pawnbroker|perfumery|pet|pet_grooming|photo|pottery|printer_ink|printing|rental|repair|scooter|scuba_diving|seafood|second_hand|security|sewing|shoe_repair|shoes|sports|stationery|storage_rental|supermarket|tailor|tattoo|tea|tobacco|tool_hire|toys|trade|travel_agency|tyres|variety_store|video_games|watches|weapons|wholesale|window_blind|wine'.split("|").sort().join("|"),
+            'kiosk|vacant'],
             ['office',
-                'company|estate_agent|insurance|telecommunication|it|accountant|employment_agency|tax_advisor|financial|advertising_agency|logistics|newspaper|financial_advisor|consulting|travel_agent|coworking|moving_company|lawyer|architect|construction_company|developer|credit_broker|graphic_design|construction|property_management|cleaning|notary'.split("|").sort().join("|"),
-                ''],
+            'accountant|advertising_agency|architect|cleaning|company|construction|construction_company|consulting|coworking|credit_broker|developer|employment_agency|estate_agent|financial|financial_advisor|graphic_design|insurance|it|lawyer|logistics|moving_company|newspaper|notary|property_management|tax_advisor|telecommunication|travel_agent'.split("|").sort().join("|"),
+            ''],
             ['craft',
-                'carpenter|winery|metal_construction|electronics_repair|photographer|electrician|brewery|hvac|plumber|tailor|shoemaker|sawmill|caterer|window_construction|gardener|dressmaker|confectionery|stonemason|glaziery|painter|roofer|builder|key_cutter|upholsterer|cleaning|pottery|distillery|jeweller|handicraft|joiner|agricultural_engines|tiler|insulation|clockmaker|sculptor|printer|cabinet_maker'.split("|").sort().join("|"),
-                ''],
+            'agricultural_engines|brewery|builder|cabinet_maker|carpenter|caterer|cleaning|clockmaker|confectionery|distillery|dressmaker|electrician|electronics_repair|gardener|glaziery|handicraft|hvac|insulation|jeweller|joiner|key_cutter|metal_construction|painter|photographer|plumber|pottery|printer|roofer|sawmill|sculptor|shoemaker|stonemason|tailor|tiler|upholsterer|window_construction|winery'.split("|").sort().join("|"),
+            ''],
             ['tourism',
-                'hotel|hostel|guest_house|motel'.split("|").sort().join("|"),
-                ''],
+            'guest_house|hostel|hotel|motel'.split("|").sort().join("|"),
+            ''],
         ];
 
         function buildOverpassUrl(name, osmRelId, tagKey) {
@@ -986,7 +985,7 @@ out skel qt;`;
         const ALL_TAGS = [
             { key: 'nb_siret', label: 'SIRET' },
             { key: 'nb_name', label: 'Name' },
-            { key: 'nb_phone', label: 'Phone' },
+            { key: 'nb_phone', label: 'Phone, Mobile' },
             { key: 'nb_website_merge', label: 'Website, Fb, Insta' },
             { key: 'nb_email', label: 'Email' },
             { key: 'nb_opening_hours', label: 'Opening hours' },
@@ -1012,6 +1011,22 @@ out skel qt;`;
             }
         }
 
+        function formatDuration(days) {
+            if (days === 'N/A' || days == null) return 'N/A';
+
+            const d = days; //Math.round(days);
+            const years = Math.floor(d / 365);
+            const months = Math.floor((d % 365) / (365 / 12));
+            const remDays = d % (365 / 12);
+
+            const parts = [];
+            if (years > 0) parts.push(`${years >= 3 ? '>' : ''}${years} an${years > 1 ? 's' : ''}`);
+            if (months > 0 && years < 3) parts.push(`${months} mois`);
+            if (parts.length === 0) parts.push(`${remDays} j`);
+
+            return parts.join(' ');
+        }
+
         function buildHoverHTML(f) {
             const nb_pois = f.nb_pois ?? 0;
             const freshness = f.avg_days_since_pois_update ?? 'N/A';
@@ -1020,12 +1035,12 @@ out skel qt;`;
             let detail = '';
             if (nb_pois > 0) {
                 if (isFreshness) {
-                    detail = `<br/>Fraîcheur moyenne: <b>${freshness}</b> j`;
+                    detail = `<br/>Âge moyen maj: <b>${formatDuration(freshness)}</b>`;
                 } else {
                     const val = Math.trunc((f[currentTag] ?? 0) / nb_pois * 100);
                     const missing = nb_pois - (f[currentTag] ?? 0);
                     detail = `
-                    - Fraîcheur moyenne: ${freshness} j<br/>
+                    <br/>Âge moyen maj: ${formatDuration(freshness)}<br/>
                     ${currentLabel}: <b>${val}%</b><br/>
                     POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${missing.toLocaleString()}</b>`;
                 }
@@ -1119,7 +1134,7 @@ out skel qt;`;
                 : '';
 
             const html_if_pois = nb_pois > 0
-                ? ` - Fraîcheur moyenne: <b style="color:#111;">${freshness}</b> jours
+                ? ` - Âge moyen maj: <b style="color:#111;">${formatDuration(freshness)}</b>
                 </div>
                 <div style="font-size:10px;color:#aaa;margin-bottom:6px;">% complétude${historyLabel}</div>
                 <table style="border-collapse:collapse;width:100%;">${rows}</table>
