@@ -525,7 +525,7 @@
             ''],
         ];
 
-        function buildOverpassUrl(name, osmRelId, tagKey) {
+        function buildOverpassTagUrl(name, osmRelId, tagKey) {
             const osmTags = OVERPASS_TAG_MAP[tagKey];
             if (!osmTags?.length || !osmRelId) return null;
 
@@ -553,6 +553,38 @@ out body;
 out skel qt;`;
 
             return `https://overpass-turbo.eu/?Q=${encodeURIComponent(query)}&R`;
+        }
+
+        function buildOverpassFreshnessUrl(name, osmRelId) {
+            if (!osmRelId) return null;
+
+            const filterLines = OVERPASS_TYPE_FILTERS
+                .map(([typeKey, includeValues, excludeValues]) => {
+                    const include = `["${typeKey}"~"${includeValues}"]`;
+                    const exclude = excludeValues ? `["${typeKey}"!~"${excludeValues}"]` : '';
+                    // filter: last edit timestamp older than 5 years
+                    return `nwr${include}${exclude}(if:timestamp() < "${fiveYearsAgoISO()}")(area.territoire);`;
+                })
+                .join('\n\n');
+
+            const query =
+                `//POIs de ${name} mis à jour il y a plus de 5 ans\n
+[out:json];
+rel(${osmRelId});map_to_area->.territoire;
+(
+${filterLines}
+);
+out body;
+>;
+out skel qt;`;
+
+            return `https://overpass-turbo.eu/?Q=${encodeURIComponent(query)}&R`;
+        }
+
+        function fiveYearsAgoISO() {
+            const d = new Date();
+            d.setFullYear(d.getFullYear() - 5);
+            return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
         }
 
         // ── MapLibre expression helpers ───────────────────────────────────────
@@ -631,10 +663,10 @@ out skel qt;`;
                 version: 8,
                 sources: {
                     osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 },
-                    regions: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/regions_stats.pmtiles", promoteId: 'code' },
-                    departements: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/departements_stats.pmtiles", promoteId: 'code' },
-                    epci: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/epci_stats.pmtiles", promoteId: 'code' },
-                    communes: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/communes_stats.pmtiles", promoteId: 'code' },
+                    regions_boundaries: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/regions_stats_boundaries.pmtiles", promoteId: 'code' },
+                    departements_boundaries: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/departements_stats_boundaries.pmtiles", promoteId: 'code' },
+                    epci_boundaries: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/epci_stats_boundaries.pmtiles", promoteId: 'code' },
+                    communes_boundaries: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/communes_stats_boundaries.pmtiles", promoteId: 'code' },
 
                     regions_centroid: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/regions_stats_centroid.pmtiles", promoteId: 'code' },
                     departements_centroid: { type: "vector", url: "pmtiles://https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/departements_stats_centroid.pmtiles", promoteId: 'code' },
@@ -651,14 +683,14 @@ out skel qt;`;
 
                     // ── Fills ────────────────────────────────────────────────────
                     {
-                        id: 'regions-fill', type: 'fill', source: 'regions',
-                        'source-layer': 'regions_stats', minzoom: 0,
+                        id: 'regions-fill', type: 'fill', source: 'regions_boundaries',
+                        'source-layer': 'regions_stats_boundaries', minzoom: 0,
                         layout: { visibility: 'none' },
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
-                        id: 'regions-line', type: 'line', source: 'regions',
-                        'source-layer': 'regions_stats', minzoom: 0,
+                        id: 'regions-line', type: 'line', source: 'regions_boundaries',
+                        'source-layer': 'regions_stats_boundaries', minzoom: 0,
                         layout: { visibility: 'none' },
                         paint: {
                             'line-color': LINE_STYLE.boundary.color,
@@ -666,14 +698,14 @@ out skel qt;`;
                         }
                     },
                     {
-                        id: 'departements-fill', type: 'fill', source: 'departements',
-                        'source-layer': 'departements_stats', minzoom: 2,
+                        id: 'departements-fill', type: 'fill', source: 'departements_boundaries',
+                        'source-layer': 'departements_stats_boundaries', minzoom: 2,
                         layout: { visibility: 'none' },
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
-                        id: 'departements-line', type: 'line', source: 'departements',
-                        'source-layer': 'departements_stats', minzoom: 2,
+                        id: 'departements-line', type: 'line', source: 'departements_boundaries',
+                        'source-layer': 'departements_stats_boundaries', minzoom: 2,
                         layout: { visibility: 'none' },
                         paint: {
                             'line-color': LINE_STYLE.boundary.color,
@@ -681,14 +713,14 @@ out skel qt;`;
                         }
                     },
                     {
-                        id: 'epci-fill', type: 'fill', source: 'epci',
-                        'source-layer': 'epci_stats', minzoom: 3,
+                        id: 'epci-fill', type: 'fill', source: 'epci_boundaries',
+                        'source-layer': 'epci_stats_boundaries', minzoom: 3,
                         layout: { visibility: 'none' },
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
-                        id: 'epci-line', type: 'line', source: 'epci',
-                        'source-layer': 'epci_stats', minzoom: 3,
+                        id: 'epci-line', type: 'line', source: 'epci_boundaries',
+                        'source-layer': 'epci_stats_boundaries', minzoom: 3,
                         layout: { visibility: 'none' },
                         paint: {
                             'line-color': LINE_STYLE.boundary.color,
@@ -696,14 +728,14 @@ out skel qt;`;
                         }
                     },
                     {
-                        id: 'communes-fill', type: 'fill', source: 'communes',
-                        'source-layer': 'communes_stats', minzoom: 5,
+                        id: 'communes-fill', type: 'fill', source: 'communes_boundaries',
+                        'source-layer': 'communes_stats_boundaries', minzoom: 5,
                         layout: { visibility: 'none' },
                         paint: { 'fill-color': makeFillColor('nb_siret'), 'fill-opacity': 1 }
                     },
                     {
-                        id: 'communes-line', type: 'line', source: 'communes',
-                        'source-layer': 'communes_stats', minzoom: 5,
+                        id: 'communes-line', type: 'line', source: 'communes_boundaries',
+                        'source-layer': 'communes_stats_boundaries', minzoom: 5,
                         layout: { visibility: 'none' },
                         paint: {
                             'line-color': LINE_STYLE.boundary.color,
@@ -1097,7 +1129,7 @@ out skel qt;`;
                 const p = pct(key);
                 const color = pctColor(p);
                 const delta = computeDelta(f, key);
-               const badge = deltaBadge(delta);
+                const badge = deltaBadge(delta);
 
                 return `<tr>
                 <td style="padding:3px 8px 3px 0;color:#555;white-space:nowrap;">${label}</td>
@@ -1116,21 +1148,25 @@ out skel qt;`;
             }).join('');
 
             let overpassSection = '';
-            if (!isFreshness && (currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
-                const overpassUrl = buildOverpassUrl(f.nom, f.osm_id, currentTag);
+            if ((currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
+                const overpassUrl = isFreshness
+                    ? buildOverpassFreshnessUrl(f.nom, f.osm_id)
+                    : buildOverpassTagUrl(f.nom, f.osm_id, currentTag);
                 if (overpassUrl) {
                     overpassSection = `<div>
                     <a href="${overpassUrl}" target="_blank"
                     style="display:inline-flex;align-items:center;gap:5px;
-                            color:#1a56db;text-decoration:none;font-size:11px;font-weight:500;">
-                        Voir sur Overpass Turbo
+                    color:#1a56db;text-decoration:none;font-size:11px;font-weight:500;">
+                    Voir sur Overpass Turbo
                     </a>
-                </div>`;
+                    </div>`;
                 }
             }
 
-            const missingLine = (!isFreshness && nb_pois > 0)
-                ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${(nb_pois - (f[currentTag] ?? 0)).toLocaleString()}</b></div>`
+            const missingLine = nb_pois > 0
+                ? isFreshness
+                ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs mis à jour il y a plus de 5 ans: <b>${(f.nb_pois_outdated ?? 'N/A').toLocaleString()}</b></div>`
+                : `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">POIs sans tag ${currentLabel.replace('Complétude ', '')}: <b>${(nb_pois - (f[currentTag] ?? 0)).toLocaleString()}</b></div>`
                 : '';
 
             const html_if_pois = nb_pois > 0
@@ -1157,34 +1193,35 @@ out skel qt;`;
         // ── Hover: boundary polygons ──────────────────────────────────────────
 
         function attachBoundaryHover(fillId) {
-            const sourceName = fillId.replace('-fill', '');
-            const sourceLayer = sourceName + '_stats';
+            const baseLayer = fillId.replace('-fill', '');
+            const source = baseLayer + '_boundaries';
+            const sourceLayer = baseLayer + '_stats_boundaries';
             let hoveredStateId = null;
 
             if (!isTouch) {
                 map.on('mousemove', fillId, (e) => {
-                    if (currentLayer !== sourceName || currentMode !== 'boundary') return;
+                    if (currentLayer !== baseLayer || currentMode !== 'boundary') return;
                     map.getCanvas().style.cursor = 'pointer';
                     hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
                     if (hoveredStateId) {
-                        map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
+                        map.setFeatureState({ source, sourceLayer, id: hoveredStateId }, { hover: false });
                     }
                     hoveredStateId = e.features[0].id;
-                    map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: true });
+                    map.setFeatureState({ source, sourceLayer, id: hoveredStateId }, { hover: true });
                 });
 
                 map.on('mouseleave', fillId, () => {
                     map.getCanvas().style.cursor = '';
                     hoverPopup.remove();
                     if (hoveredStateId) {
-                        map.setFeatureState({ source: sourceName, sourceLayer, id: hoveredStateId }, { hover: false });
+                        map.setFeatureState({ source, sourceLayer, id: hoveredStateId }, { hover: false });
                     }
                     hoveredStateId = null;
                 });
             }
 
             map.on('click', fillId, (e) => {
-                if (currentLayer !== sourceName || currentMode !== 'boundary') return;
+                if (currentLayer !== baseLayer || currentMode !== 'boundary') return;
                 clickPopup.setLngLat(e.lngLat).setHTML(buildClickHTML(e.features[0].properties)).addTo(map);
             });
         }
@@ -1192,25 +1229,26 @@ out skel qt;`;
         // ── Hover: centroid circles ───────────────────────────────────────────
 
         function attachCentroidHover(circleId) {
-            const sourceName = circleId.replace('-circle', '');
-            const sourceLayer = sourceName + '_stats_centroid';
+            const baseLayer = circleId.replace('-circle', '');
+            const source = baseLayer + '_centroid';
+            const sourceLayer = baseLayer + '_stats_centroid';
             let hoveredCentroidId = null;
 
             if (!isTouch) {
                 map.on('mousemove', circleId, (e) => {
-                    if (currentLayer !== sourceName || currentMode !== 'centroid') return;
+                    if (currentLayer !== baseLayer || currentMode !== 'centroid') return;
                     map.getCanvas().style.cursor = 'pointer';
                     hoverPopup.setLngLat(e.lngLat).setHTML(buildHoverHTML(e.features[0].properties)).addTo(map);
 
                     if (hoveredCentroidId !== null) {
                         map.setFeatureState(
-                            { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                            { source, sourceLayer, id: hoveredCentroidId },
                             { hover: false }
                         );
                     }
                     hoveredCentroidId = e.features[0].id;
                     map.setFeatureState(
-                        { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                        { source, sourceLayer, id: hoveredCentroidId },
                         { hover: true }
                     );
                 });
@@ -1221,7 +1259,7 @@ out skel qt;`;
                     hoverPopup.remove();
                     if (hoveredCentroidId !== null) {
                         map.setFeatureState(
-                            { source: sourceName + '_centroid', sourceLayer, id: hoveredCentroidId },
+                            { source, sourceLayer, id: hoveredCentroidId },
                             { hover: false }
                         );
                     }
@@ -1230,7 +1268,7 @@ out skel qt;`;
             }
 
             map.on('click', circleId, (e) => {
-                if (currentLayer !== sourceName || currentMode !== 'centroid') return;
+                if (currentLayer !== baseLayer || currentMode !== 'centroid') return;
                 clickPopup.setLngLat(e.lngLat).setHTML(buildClickHTML(e.features[0].properties)).addTo(map);
             });
         }

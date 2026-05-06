@@ -33,6 +33,13 @@ SELECT
             ELSE 0
         END
     )::int AS nb_website_merge,
+    sum(
+        CASE
+            WHEN p."timestamp"::timestamptz < u.value::timestamptz - interval '5 years'
+            THEN 1
+            ELSE 0
+        END
+    )::int AS nb_pois_outdated,
     count(p.opening_hours)::int AS nb_opening_hours,
     count(p.wheelchair)::int AS nb_wheelchair,
     round(avg(EXTRACT(epoch FROM u.value::timestamptz - p."timestamp"::timestamptz)) / 86400::numeric)::int AS avg_days_since_pois_update,
