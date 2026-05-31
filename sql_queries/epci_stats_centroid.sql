@@ -17,8 +17,8 @@ SELECT
         CASE
             WHEN p.phone IS NOT NULL 
             OR p.contact_phone IS NOT NULL
-            OR p.tags->>'mobile' IS NOT NULL
-            OR p.tags->>'contact:mobile' IS NOT NULL THEN 1
+            OR p.mobile IS NOT NULL
+            OR p.contact_mobile IS NOT NULL THEN 1
             ELSE 0
         END
     )::int AS nb_phone,
@@ -46,10 +46,10 @@ SELECT
     st_setsrid((st_maximuminscribedcircle(t.geom_4326)).center, 4326)::geometry(Point,4326) AS center
 FROM limites_admin_insee.epci t
 LEFT JOIN limites_admin_osm.epci o ON t.code = o.code_siren
-LEFT JOIN pois_osm_france_merge.pois p ON st_intersects(p.geom_4326, t.geom_4326)
+LEFT JOIN pois_osm.pois p ON st_intersects(p.geom_4326, t.geom_4326)
 CROSS JOIN (
     SELECT value
-    FROM pois_osm_france_merge.osm2pgsql_properties
+    FROM pois_osm.osm2pgsql_properties
     WHERE property = 'replication_timestamp'
     LIMIT 1
     ) u
