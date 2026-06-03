@@ -8,6 +8,8 @@
     <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@latest/dist/pmtiles.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@latest/dist/maplibre-gl-geocoder.css" />
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@latest/dist/maplibre-gl-geocoder.js"></script>
     <style>
         *,
         *::before,
@@ -657,6 +659,44 @@ out skel qt;`;
             ];
         }
 
+        const geocoderApi = {
+            forwardGeocode: async (config) => {
+                const features = [];
+                try {
+                    const request =
+                        `https://nominatim.openstreetmap.org/search?q=${config.query
+                        }&format=geojson&polygon_geojson=1&countrycodes=fr&layer=address&addressdetails=1`;
+                    const response = await fetch(request);
+                    const geojson = await response.json();
+                    for (const feature of geojson.features) {
+                        const bbox = feature.bbox;
+                        const point = {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: [
+                                    bbox[0] + (bbox[2] - bbox[0]) / 2,
+                                    bbox[1] + (bbox[3] - bbox[1]) / 2
+                                ]
+                            },
+                            place_name: feature.properties.display_name,
+                            properties: feature.properties,
+                            text: feature.properties.display_name,
+                            place_type: ['place'],
+                            bbox: bbox
+                        };
+                        features.push(point);
+                    }
+                } catch (e) {
+                    console.error(`Failed to forwardGeocode with error: ${e}`);
+                }
+
+                return {
+                    features
+                };
+            }
+        };
+
         const map = new maplibregl.Map({
             container: "map",
             style: {
@@ -852,6 +892,7 @@ out skel qt;`;
                     '<a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
                 ]
             }))
+            .addControl(new MaplibreGeocoder(geocoderApi, { marker: false, collapsed:true, showResultsWhileTyping: true, clearOnBlur: true, clearAndBlurOnEsc: true }))
             .addControl(new maplibregl.NavigationControl({ visualizePitch: 'true' }), 'top-right')
             .addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
             .addControl(new maplibregl.GlobeControl(), 'top-right')
