@@ -5,8 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Complétude POIs OSM</title>
-    <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@^6.0.0/dist/maplibre-gl.css" />
     <script src="https://unpkg.com/pmtiles@latest/dist/pmtiles.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@latest/dist/maplibre-gl-geocoder.css" />
     <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@latest/dist/maplibre-gl-geocoder.js"></script>
@@ -387,7 +386,9 @@
     </div>
 
 
-    <script>
+    <script type="module">
+        import * as maplibregl from 'https://unpkg.com/maplibre-gl@^6.0.0/dist/maplibre-gl.mjs';
+
         // ── Mobile panel toggle ───────────────────────────────────────────────
 
         const controlsPanel = document.getElementById('controls');
