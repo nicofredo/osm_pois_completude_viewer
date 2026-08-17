@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Liste des POIs suivis — Complétude POIs OSM</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: sans-serif;
+            background: #f7f7f8;
+            color: #222;
+        }
+
+        header {
+            background: white;
+            border-bottom: 1px solid #eee;
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        header .header-inner {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .header-links {
+            display: flex;
+            gap: 40px;
+        }
+
+        h1 {
+            font-size: 16px;
+            margin: 0;
+        }
+
+        header a.link {
+            font-size: 13px;
+            color: #1a56db;
+            text-decoration: underline;
+        }
+
+        header a.link:hover {
+            font-weight: bold;
+        }
+
+        main {
+            max-width: 1000px;
+            margin: 10px auto;
+        }
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+
+        #filter-input {
+            padding: 9px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        #filter-input:focus {
+            outline: none;
+            border-color: #1a56db;
+        }
+
+        #sort-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sort-btn {
+            flex: 1;
+            padding: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .sort-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .sort-btn.active {
+            background: #e8f0fe;
+            border-color: #1a56db;
+            color: #1a56db;
+            font-weight: 500;
+        }
+
+        #table-wrap {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #fafafa;
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 2px solid #eee;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        th:last-child,
+        td.cell-count {
+            text-align: right;
+        }
+
+        td {
+            padding: 9px 12px;
+            border-bottom: 1px solid #f2f2f2;
+            vertical-align: top;
+        }
+
+        .cell-tag code {
+            font-size: 13px;
+            font-weight: 400;
+            color: #1a56db;
+        }
+
+        .cell-tag code:hover {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        .cell-tag a {
+            text-decoration: none;
+        }
+
+        .cell-desc {
+            color: #444;
+        }
+
+        .cell-count {
+            font-weight: 600;
+            color: #222;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 600px) {
+            .cell-tag {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>Liste des POIs OSM suivis</h1>
+            <div class="header-links">
+                <a class="link" href="https://github.com/nicofredo/osm_pois_completude_viewer/issues">Suggérer des nouveaux POIs ?</a>
+                <a class="link" href="main.html">← Retour à la carte</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div id="controls">
+            <input type="text" id="filter-input" placeholder="Filtrer (clé, valeur, description)…" />
+            <div id="sort-row">
+                <button class="sort-btn active" data-sort="alpha">A → Z</button>
+                <button class="sort-btn" data-sort="count">Nb POIs décroissant</button>
+            </div>
+        </div>
+
+        <div id="table-wrap">
+            <table id="tags-tableno" style="display:table;">
+                <thead>
+                    <tr>
+                        <th>Tag</th>
+                        <th>Description</th>
+                        <th>Nb POIs</th>
+                    </tr>
+                </thead>
+                <tbody id="tags-table-body"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script type="module">
+        // Colonnes attendues : class,subclass,count,description
+        const TAGS_INFO_URL = 'https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/tags_list.json';
+
+        let tagsData = null;
+        let sortMode = 'alpha';   // 'alpha' | 'count'
+
+        const filterInput = document.getElementById('filter-input');
+        const tagsTable = document.getElementById('tags-table');
+        const tagsTableBody = document.getElementById('tags-table-body');
+
+        function renderTable() {
+            if (!tagsData) return;
+
+            const query = filterInput.value.trim().toLowerCase();
+
+            let rows = tagsData.filter(t => {
+                if (!query) return true;
+                const haystack = `${t.key}=${t.value} ${t.desc || ''}`.toLowerCase();
+                return haystack.includes(query);
+            });
+
+            rows = rows.slice().sort((a, b) => {
+                if (sortMode === 'count') {
+                    return (b.count || 0) - (a.count || 0);
+                }
+                const ka = `${a.key}=${a.value}`;
+                const kb = `${b.key}=${b.value}`;
+                return ka.localeCompare(kb);
+            });
+
+            tagsTableBody.innerHTML = rows.map(t => `
+                <tr>
+                    <td class="cell-tag"><a href="https://taginfo.geofabrik.de/europe:france/tags/${t.key}=${t.value}"><code>${t.key}=${t.value}</code></a></td>
+                    <td class="cell-desc">${t.desc ? t.desc : '—'}</td>
+                    <td class="cell-count">${t.count.toLocaleString()}</td>
+                </tr>
+            `).join('');
+
+        }
+
+        async function loadTagsInfo() {
+            try {
+                const res = await fetch(TAGS_INFO_URL);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+                tagsData = json || [];
+                renderTable();
+            } catch (e) {
+                console.warn('Could not load tags_list.json', e);
+            }
+        }
+
+        filterInput.addEventListener('input', renderTable);
+
+        document.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                sortMode = btn.dataset.sort;
+                renderTable();
+            });
+        });
+
+        loadTagsInfo();
+    </script>
+</body>
+</html>

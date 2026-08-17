@@ -89,12 +89,27 @@
             line-height: 1.4;
         }
 
-        #source-code {
-            font-size: 11px;
+        .link-group {
+            display: flex;
+            flex-direction: column;
+            align-items: left;
+            gap: 3px 0;
+        }
+
+        .external-link {
+            font-size: 12px;
+            padding: 4px 0;
+            color: #1a56db;
+            white-space: nowrap;
+            text-decoration: underline;
+        }
+
+        .external-link:hover {
+            font-weight: bold;
         }
 
         .section-label {
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 500;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -374,11 +389,19 @@
                 title="Tag opening_hours">Opening hours</button>
             <button class="tag-btn" data-tag="nb_wheelchair" data-label="Complétude Wheelchair"
                 title="Tag wheelchair">Wheelchair</button>
-            <br>
-            <div id="update-time"></div>
-            <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" id="source-code">Code source</a>
-        </div>
 
+            <hr class="divider" />
+            
+            <div class="link-group">
+                <a href="tags.html" class="external-link">Liste des POIs suivis →</a>
+                <a href="https://github.com/nicofredo/osm_pois_completude_viewer/issues" target="_blank" class="external-link">Suggérer une idée</a>
+                <a href="https://github.com/nicofredo/osm_pois_completude_viewer" target="_blank" class="external-link">Dépôt Github</a>
+            </div>
+
+            <hr class="divider" />
+            
+            <div id="update-time"></div>
+        </div>
         <div id="legend">
             <div id="legend-bar"></div>
             <div id="legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>
@@ -1353,7 +1376,7 @@ out skel qt;`;
                 const res = await fetch('https://pub-a4235d6494cb4e47870d52812efcd739.r2.dev/update_timestamp.json');
                 const { updated_at } = await res.json();
                 document.getElementById('update-time').innerHTML = `
-        <span style="color:#666;font-size:11px;">
+        <span style="color:#666;font-size:12px;">
             Mise à jour des données OSM: <br><b>${new Date(updated_at).toLocaleString('fr-FR', {
                     dateStyle: 'medium', timeStyle: 'short'
                 })}</b>
