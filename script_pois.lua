@@ -338,6 +338,22 @@ local allowed_tourism = {
     zoo = true,
 }
 
+local allowed_leisure = {
+    adult_gaming_centre = true,
+    bowling_alley = true,
+    dance = true,
+    escape_game = true,
+    fitness_centre = true,
+    golf_course = true,
+    ice_rink = true,
+    trampoline_park = true,
+    water_park = true,
+}
+
+local allowed_healthcare = {
+    laboratory = true,
+}
+
 local pois = osm2pgsql.define_table({
     name = 'pois',
     ids = { type = 'any', type_column = 'osm_type', id_column = 'osm_id' },
@@ -434,6 +450,20 @@ function process_poi(object)
         fields.subclass = object:grab_tag('tourism')
         fields.tags = object.tags
         if allowed_tourism[fields.subclass] then
+            return fields, pois
+        end
+    elseif object.tags.leisure then
+        fields.class = "leisure"
+        fields.subclass = object:grab_tag('leisure')
+        fields.tags = object.tags
+        if allowed_leisure[fields.subclass] then
+            return fields, pois
+        end
+    elseif object.tags.healthcare then
+        fields.class = "healthcare"
+        fields.subclass = object:grab_tag('healthcare')
+        fields.tags = object.tags
+        if allowed_healthcare[fields.subclass] then
             return fields, pois
         end
     else
