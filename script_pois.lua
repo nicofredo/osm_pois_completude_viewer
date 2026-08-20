@@ -266,6 +266,7 @@ local allowed_office = {
     surveyor = true,
     tax_advisor = true,
     telecommunication = true,
+    transport = true,
     travel_agent = true,
 }
 
@@ -418,58 +419,27 @@ function process_poi(object)
         instagram = object:grab_tag('instagram')
     }
 
-    if object.tags.amenity then
-        fields.class = "amenity"
-        fields.subclass = object:grab_tag('amenity')
-        fields.tags = object.tags
-        if allowed_amenity[fields.subclass] then
+    local candidates = {
+        { tag = 'amenity',   allowed = allowed_amenity },
+        { tag = 'shop',      allowed = allowed_shop },
+        { tag = 'office',    allowed = allowed_office },
+        { tag = 'craft',     allowed = allowed_craft },
+        { tag = 'tourism',   allowed = allowed_tourism },
+        { tag = 'leisure',   allowed = allowed_leisure },
+        { tag = 'healthcare',allowed = allowed_healthcare },
+    }
+
+    for _, c in ipairs(candidates) do
+        local value = object.tags[c.tag]
+        if value and c.allowed[value] then
+            fields.class = c.tag
+            fields.subclass = object:grab_tag(c.tag)
+            fields.tags = object.tags
             return fields, pois
         end
-    elseif object.tags.shop then
-        fields.class = "shop"
-        fields.subclass = object:grab_tag('shop')
-        fields.tags = object.tags
-        if allowed_shop[fields.subclass] then
-            return fields, pois
-        end
-    elseif object.tags.office then
-        fields.class = "office"
-        fields.subclass = object:grab_tag('office')
-        fields.tags = object.tags
-        if allowed_office[fields.subclass] then
-            return fields, pois
-        end
-    elseif object.tags.craft then
-        fields.class = "craft"
-        fields.subclass = object:grab_tag('craft')
-        fields.tags = object.tags
-        if allowed_craft[fields.subclass] then
-            return fields, pois
-        end
-    elseif object.tags.tourism then
-        fields.class = "tourism"
-        fields.subclass = object:grab_tag('tourism')
-        fields.tags = object.tags
-        if allowed_tourism[fields.subclass] then
-            return fields, pois
-        end
-    elseif object.tags.leisure then
-        fields.class = "leisure"
-        fields.subclass = object:grab_tag('leisure')
-        fields.tags = object.tags
-        if allowed_leisure[fields.subclass] then
-            return fields, pois
-        end
-    elseif object.tags.healthcare then
-        fields.class = "healthcare"
-        fields.subclass = object:grab_tag('healthcare')
-        fields.tags = object.tags
-        if allowed_healthcare[fields.subclass] then
-            return fields, pois
-        end
-    else
-        return nil, nil
     end
+
+    return nil, nil
 end
 
 function osm2pgsql.process_node(object)

@@ -261,7 +261,7 @@
                 const res = await fetch(TAGS_INFO_URL);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
-                tagsData = json || [];
+                tagsData = json.data || [];
                 renderTable();
             } catch (e) {
                 console.warn('Could not load tags_list.json', e);
