@@ -146,6 +146,7 @@ local allowed_shop = {
     ice_cream = true,
     interior_decoration = true,
     jewelry = true,
+    kiosk = true,
     kitchen = true,
     kitchenware = true,
     knives = true,
