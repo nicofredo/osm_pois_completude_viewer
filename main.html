@@ -360,7 +360,7 @@
             <hr class="divider" />
 
             <p class="section-label">Fraîcheur POIs</p>
-            <button class="tag-btn" data-tag="__freshness__" data-label="Fraîcheur des POIs">Âge moyen mise à jour POIs</button>
+            <button class="tag-btn" data-tag="freshness" data-label="Fraîcheur des POIs">Âge moyen mise à jour POIs</button>
 
             <div id="circle-size-section">
                 <hr class="divider" />
@@ -727,6 +727,48 @@ out skel qt;`;
             }
         };
 
+
+        // ── URL params > localStorage > default ────────────────────────────────
+        const urlParams = new URLSearchParams(window.location.search);
+
+        function getInitialFloat(urlKey, storageKey, defaultValue) {
+            const fromUrl = parseFloat(urlParams.get(urlKey));
+            if (!isNaN(fromUrl)) return fromUrl;
+
+            const fromStorage = parseFloat(localStorage.getItem(storageKey));
+            if (!isNaN(fromStorage)) return fromStorage;
+
+            return defaultValue;
+        }
+
+        function getInitialString(urlKey, storageKey, defaultValue) {
+            return urlParams.get(urlKey) ?? localStorage.getItem(storageKey) ?? defaultValue;
+        }
+
+        function updateUrlParam(key, value) {
+            const params = new URLSearchParams(window.location.search);
+            params.set(key, value);
+            writeOrderedParams(params);
+        }
+
+        function removeUrlParam(key) {
+            const params = new URLSearchParams(window.location.search);
+            params.delete(key);
+            writeOrderedParams(params);
+        }
+
+        const PARAM_ORDER = ['layer', 'tag', 'mode', 'circleSize', 'lat', 'lng', 'zoom'];
+
+        function writeOrderedParams(params) {
+            const ordered = new URLSearchParams();
+            PARAM_ORDER.forEach(key => {
+                if (params.has(key)) ordered.set(key, params.get(key));
+            });
+            const query = ordered.toString();
+            history.replaceState(null, '', `${window.location.pathname}${query ? '?' + query : ''}`);
+        }
+
+
         const map = new maplibregl.Map({
             container: "map",
             style: {
@@ -908,32 +950,32 @@ out skel qt;`;
                 ]
             },
             center: [
-                parseFloat(localStorage.getItem('osm_lng')) || 2.5,
-                parseFloat(localStorage.getItem('osm_lat')) || 46.5
+                getInitialFloat('lng', 'osm_lng', 2.5),
+                getInitialFloat('lat', 'osm_lat', 46.5)
             ],
             maxZoom: 13,
-            zoom: parseFloat(localStorage.getItem('osm_zoom')) || 5,
+            zoom: getInitialFloat('zoom', 'osm_zoom', 5),
             attributionControl: false
         })
-            .addControl(new maplibregl.AttributionControl({
-                compact: true,
-                customAttribution: [
-                    '<a href="https://maplibre.org/" target="_blank">MapLibre</a>',
-                    '<a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-                ]
-            }))
-            .addControl(new MaplibreGeocoder(geocoderApi, { marker: false, collapsed:true, showResultsWhileTyping: true, clearOnBlur: true, clearAndBlurOnEsc: true }))
-            .addControl(new maplibregl.NavigationControl({ visualizePitch: 'true' }), 'top-right')
-            .addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
-            .addControl(new maplibregl.GlobeControl(), 'top-right')
-            .addControl(new maplibregl.FullscreenControl())
-            .addControl(new maplibregl.GeolocateControl({ trackUserLocation: 'true' }));
+        .addControl(new maplibregl.AttributionControl({
+            compact: true,
+            customAttribution: [
+                '<a href="https://maplibre.org/" target="_blank">MapLibre</a>',
+                '<a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+            ]
+        }))
+        .addControl(new MaplibreGeocoder(geocoderApi, { marker: false, collapsed:true, showResultsWhileTyping: true, clearOnBlur: true, clearAndBlurOnEsc: true }))
+        .addControl(new maplibregl.NavigationControl({ visualizePitch: 'true' }), 'top-right')
+        .addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
+        .addControl(new maplibregl.GlobeControl(), 'top-right')
+        .addControl(new maplibregl.FullscreenControl())
+        .addControl(new maplibregl.GeolocateControl({ trackUserLocation: 'true' }));
 
-        let currentLayer = localStorage.getItem('osm_layer') ?? 'epci';
-        let currentTag = localStorage.getItem('osm_tag') ?? 'nb_siret';
+        let currentLayer = getInitialString('layer', 'osm_layer', 'epci');
+        let currentTag = getInitialString('tag', 'osm_tag', 'nb_siret');
         let currentLabel = document.querySelector(`.tag-btn[data-tag="${currentTag}"]`)?.dataset.label;
-        let currentMode = localStorage.getItem('osm_mode') ?? 'boundary';
-        let currentCircleSize = localStorage.getItem('osm_circleSize') ?? 'total';
+        let currentMode = getInitialString('mode', 'osm_mode', 'boundary');
+        let currentCircleSize = getInitialString('circleSize', 'osm_circleSize', 'total');
 
         function syncButtonsToState() {
             document.querySelectorAll('.layer-btn').forEach(b =>
@@ -976,6 +1018,7 @@ out skel qt;`;
 
         function switchLayer(layer) {
             localStorage.setItem('osm_layer', layer);
+            updateUrlParam('layer', layer);
             ['fill', 'line', 'circle', 'label'].forEach(t => {
                 map.setLayoutProperty(currentLayer + '-' + t, 'visibility', 'none');
             });
@@ -983,20 +1026,32 @@ out skel qt;`;
             setLayerVisibility(layer, currentMode);
         }
 
+        function updateCircleSizeVisibility() {
+            const shouldShow = currentMode === 'centroid' && currentTag !== 'freshness';
+            document.getElementById('circle-size-section').style.display = shouldShow ? 'block' : 'none';
+
+            if (shouldShow) {
+                updateUrlParam('circleSize', currentCircleSize);
+            } else {
+                removeUrlParam('circleSize');
+            }
+        }
+
         function switchMode(mode) {
             localStorage.setItem('osm_mode', mode);
+            updateUrlParam('mode', mode);
             currentMode = mode;
             setLayerVisibility(currentLayer, mode);
-            document.getElementById('circle-size-section').style.display =
-                (mode === 'centroid' && currentTag !== '__freshness__') ? 'block' : 'none';
+            updateCircleSizeVisibility();
         }
 
         function switchTag(tag, label) {
             localStorage.setItem('osm_tag', tag);
+            updateUrlParam('tag', tag);
             currentTag = tag;
             currentLabel = label;
 
-            const isFreshness = tag === '__freshness__';
+            const isFreshness = tag === 'freshness';
             const fillExpr = isFreshness ? makeFreshnessFillColor() : makeFillColor(tag);
             const circleExpr = isFreshness ? makeFreshnessFillColor()
                 : makeFillColor(tag, currentCircleSize === 'missing');
@@ -1032,8 +1087,7 @@ out skel qt;`;
                     map.setPaintProperty(l + '-circle', 'circle-radius', makeCircleRadius(l, 'total', tag)));
             }
 
-            document.getElementById('circle-size-section').style.display =
-                (currentMode === 'centroid' && !isFreshness) ? 'block' : 'none';
+            updateCircleSizeVisibility();
         }
 
         function applyCircleRadius() {
@@ -1045,6 +1099,7 @@ out skel qt;`;
 
         function switchCircleSize(sizeMode) {
             localStorage.setItem('osm_circleSize', sizeMode);
+            updateUrlParam('circleSize', sizeMode);
             currentCircleSize = sizeMode;
             applyCircleRadius();
         }
@@ -1133,7 +1188,7 @@ out skel qt;`;
         function buildHoverHTML(f) {
             const nb_pois = f.nb_pois ?? 0;
             const freshness = f.avg_days_since_pois_update ?? 'N/A';
-            const isFreshness = currentTag === '__freshness__';
+            const isFreshness = currentTag === 'freshness';
 
             let detail = '';
             if (nb_pois > 0) {
@@ -1158,7 +1213,7 @@ out skel qt;`;
         function buildClickHTML(f) {
             const nb_pois = f.nb_pois ?? 0;
             const freshness = f.avg_days_since_pois_update ?? 'N/A';
-            const isFreshness = currentTag === '__freshness__';
+            const isFreshness = currentTag === 'freshness';
             const pct = (key) => nb_pois > 0 ? Math.trunc((f[key] ?? 0) / nb_pois * 100) : 0;
 
             // ── History delta ─────────────────────────────────────────────────
@@ -1366,9 +1421,16 @@ out skel qt;`;
 
         map.on('moveend', () => {
             const { lng, lat } = map.getCenter();
-            localStorage.setItem('osm_zoom', map.getZoom());
+            const zoom = map.getZoom();
+            localStorage.setItem('osm_zoom', zoom);
             localStorage.setItem('osm_lng', lng);
             localStorage.setItem('osm_lat', lat);
+
+            const params = new URLSearchParams(window.location.search);
+            params.set('lng', lng.toFixed(3));
+            params.set('lat', lat.toFixed(3));
+            params.set('zoom', zoom.toFixed(1));
+            writeOrderedParams(params);
         });
 
         async function loadUpdateTimestamp() {
