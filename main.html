@@ -380,7 +380,7 @@
             <button class="tag-btn" data-tag="nb_name" data-label="Complétude Name" title="Tag name">Name</button>
             <button class="tag-btn" data-tag="nb_phone" data-label="Complétude Phone, Mobile"
                 title="Tags phone, contact:phone, mobile, contact:mobile">Phone | Mobile</button>
-            <button class="tag-btn" data-tag="nb_website_merge" data-label="Complétude Website, Fb, Insta"
+            <button class="tag-btn" data-tag="nb_website" data-label="Complétude Website, Fb, Insta"
                 title="Tags website, contact:website, facebook, contact:facebook, instagram, contact:instagram">Website |
                 Facebook | Instagram</button>
             <button class="tag-btn" data-tag="nb_email" data-label="Complétude Email"
@@ -527,7 +527,7 @@
             nb_siret: ['ref:FR:SIRET'],
             nb_name: ['name'],
             nb_phone: ['phone', 'contact:phone', 'mobile', 'contact:mobile'],
-            nb_website_merge: ['website', 'contact:website', 'facebook', 'contact:facebook', 'instagram', 'contact:instagram'],
+            nb_website: ['website', 'contact:website', 'facebook', 'contact:facebook', 'instagram', 'contact:instagram'],
             nb_email: ['email', 'contact:email'],
             nb_opening_hours: ['opening_hours'],
             nb_wheelchair: ['wheelchair'],
@@ -910,7 +910,7 @@ out skel qt;`;
                         id: 'regions-label', type: 'symbol', source: 'regions_labels',
                         minzoom: 6,
                         layout: {
-                            'visibility': 'none', 'text-field': ['get', 'nom'],
+                            'visibility': 'none', 'text-field': ['get', 'name'],
                             'text-font': ['Open Sans Regular'], 'text-size': 17,
                             'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
@@ -920,7 +920,7 @@ out skel qt;`;
                         id: 'departements-label', type: 'symbol', source: 'departements_labels',
                         minzoom: 6,
                         layout: {
-                            'visibility': 'none', 'text-field': ['get', 'nom'],
+                            'visibility': 'none', 'text-field': ['get', 'name'],
                             'text-font': ['Open Sans Regular'], 'text-size': 13,
                             'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
@@ -930,7 +930,7 @@ out skel qt;`;
                         id: 'epci-label', type: 'symbol', source: 'epci_labels',
                         minzoom: 8,
                         layout: {
-                            visibility: 'none', 'text-field': ['get', 'nom'],
+                            'visibility': 'none', 'text-field': ['get', 'name'],
                             'text-font': ['Open Sans Regular'], 'text-size': 13,
                             'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
@@ -940,7 +940,7 @@ out skel qt;`;
                         id: 'communes-label', type: 'symbol', source: 'communes_labels',
                         'source-layer': 'communes_labels', minzoom: 9,
                         layout: {
-                            'visibility': 'none', 'text-field': ['get', 'nom'],
+                            'visibility': 'none', 'text-field': ['get', 'name'],
                             'text-font': ['Open Sans Regular'], 'text-size': 13,
                             'text-anchor': 'center', 'text-allow-overlap': false, 'text-ignore-placement': false
                         },
@@ -1144,7 +1144,7 @@ out skel qt;`;
             { key: 'nb_siret', label: 'SIRET' },
             { key: 'nb_name', label: 'Name' },
             { key: 'nb_phone', label: 'Phone, Mobile' },
-            { key: 'nb_website_merge', label: 'Website, Fb, Insta' },
+            { key: 'nb_website', label: 'Website, Fb, Insta' },
             { key: 'nb_email', label: 'Email' },
             { key: 'nb_opening_hours', label: 'Opening hours' },
             { key: 'nb_wheelchair', label: 'Wheelchair' },
@@ -1205,7 +1205,7 @@ out skel qt;`;
             }
 
             return `<div style="font-family:sans-serif;font-size:12px;">
-            <b>${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</b><br/>
+            <b>${f.code ?? 'N/A'} - ${f.name ?? 'N/A'}</b><br/>
             POIs: ${nb_pois.toLocaleString()}${detail}</div>
             ${nb_pois > 0 ? '<div style="color:#aaa;font-size:10px;">Cliquer pour le détail</div>' : ''}`;
         }
@@ -1274,10 +1274,10 @@ out skel qt;`;
             }).join('');
 
             let overpassSection = '';
-            if ((currentLayer === 'communes' || currentLayer === 'epci') && f.osm_id && nb_pois > 0) {
+            if (f.osm_id && nb_pois > 0) {
                 const overpassUrl = isFreshness
-                    ? buildOverpassFreshnessUrl(f.nom, f.osm_id)
-                    : buildOverpassTagUrl(f.nom, f.osm_id, currentTag);
+                    ? buildOverpassFreshnessUrl(f.name, f.osm_id)
+                    : buildOverpassTagUrl(f.name, f.osm_id, currentTag);
                 if (overpassUrl) {
                     overpassSection = `<div>
                     <a href="${overpassUrl}" target="_blank"
@@ -1304,7 +1304,7 @@ out skel qt;`;
                 : `</div>`;
 
             return `<div style="font-family:sans-serif;font-size:12px;min-width:240px;">
-            <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.nom ?? 'N/A'}</div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#111;">${f.code ?? 'N/A'} - ${f.name ?? 'N/A'}</div>
             <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee;color:#555;">
                 Total POIs: <b style="color:#111;">${nb_pois.toLocaleString()}</b>${poisDeltaBadge}${html_if_pois}
             ${overpassSection}
