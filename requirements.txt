@@ -1,0 +1,6 @@
+psycopg
+requests
+dotenv
+
+# for distant storage
+boto3
